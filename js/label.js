@@ -13,8 +13,11 @@ export function normFlight(f) {
  */
 export function parseLabel(raw, list) {
   const s = String(raw).trim().toUpperCase();
-  const m = s.match(/^\s*([A-Z0-9\/][A-Z0-9\/\-]*?)\s*-\s*(TK\s?\d{3,5})\s*-\s*(\d{2}\.\d{2}\.\d{2})\s*(?:-\s*([A-Z0-9]*))?\s*(?:-\s*([A-Z0-9]*))?\s*(?:-\s*([A-Z0-9]*))?/);
-  if (m) return { pos: m[1], flight: normFlight(m[2]), date: m[3], pbln: m[6] || "", raw: s };
+  const m = s.match(/^\s*([A-Z0-9\/][A-Z0-9\/\-]*?)\s*-\s*(TK\s?\d{3,5})\s*-\s*(\d{2}\.\d{2}\.(?:\d{4}|\d{2}))(?!\d)\s*(?:-\s*([A-Z0-9]*))?\s*(?:-\s*([A-Z0-9]*))?\s*(?:-\s*([A-Z0-9]*))?/);
+  if (m) {
+    const d = m[3].length === 10 ? m[3].slice(0, 6) + m[3].slice(8) : m[3]; // 30.06.2026 -> 30.06.26
+    return { pos: m[1], flight: normFlight(m[2]), date: d, pbln: m[6] || "", raw: s };
+  }
   // Sadece pozisyon kodu (elle giriş): aktif checklist'te varsa ya da kod biçimine uyuyorsa
   const inList = list && list.items.some((i) => i.code === s);
   if (inList || /^[A-Z\/]{0,6}\d{1,6}[A-Z]?$/.test(s) || /^[A-Z]+-[A-Z]+\d*$/.test(s)) {

@@ -54,7 +54,7 @@ const MSG = {
   WRONG_DATE: (r) => ["Yanlış tarih", `Etiket tarihi ${r.label.date} · poz. ${r.label.pos}`],
   DUPLICATE: (r) => ["Zaten okundu", `Poz. ${r.label.pos} · ${hm(r.prev.t)}`],
   NOT_IN_LIST: (r) => ["Listede yok", `Poz. ${r.label.pos} bu checklist'te yok`],
-  UNREADABLE: (r) => ["Tanınmayan kod", String(r.raw).slice(0, 60)],
+  UNREADABLE: (r) => ["Tanınmayan kod", `İçerik: ${String(r.raw).slice(0, 60)}`],
   NO_SESSION: () => ["Checklist yok", "Önce kamyonun checklist'ini yükle"],
 };
 const ICON_FOR = { ok: I.check, warn: I.alert, bad: I.x, idle: I.scan };
@@ -72,7 +72,7 @@ function feedback(kind, title, sub, flash) {
 function onCode(raw, src) {
   unlockAudio();
   const l = list();
-  const res = evaluateScan(raw, l, S.session);
+  const res = evaluateScan(raw, l, S.session, { allowPosOnly: src === "manual" });
   if (S.session && res.type !== "NO_SESSION") { applyScan(S.session, res, src); store.save(); }
   const [t, s] = MSG[res.type](res);
   feedback(res.kind, t, s, res.kind !== "ok");

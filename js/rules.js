@@ -42,10 +42,13 @@ export function missingCount(m) { return m.reduce((a, x) => a + (x.virtual ? x.c
  * Okunan kodu değerlendirir. Oturumu değiştirmez.
  * @returns {{kind:'ok'|'warn'|'bad', type:string, label?:object, item?:object}}
  */
-export function evaluateScan(raw, list, session) {
+export function evaluateScan(raw, list, session, { allowPosOnly = false } = {}) {
   if (!session || !list) return { kind: "bad", type: "NO_SESSION" };
   const label = parseLabel(raw, list);
   if (!label) return { kind: "bad", type: "UNREADABLE", raw };
+  // Okunan bir barkodda uçuş ve tarih yoksa kabul edilmez (yanlış uçuş kontrolü atlanamaz).
+  // Sadece pozisyon kodu yalnızca elle girişte kabul edilir.
+  if (label.posOnly && !allowPosOnly) return { kind: "bad", type: "UNREADABLE", raw };
   if (label.posOnly) { label.flight = session.flight; label.date = session.date; }
   if (label.flight !== session.flight) return { kind: "bad", type: "WRONG_FLIGHT", label };
   if (label.date !== session.date) return { kind: "bad", type: "WRONG_DATE", label };
