@@ -9,9 +9,11 @@ Catering körüğünde kamyona yüklenen trolley/unit etiketlerini (DataMatrix) 
 ## Kullanım
 iPhone'da Safari ile GitHub Pages adresini aç → Paylaş → **Ana Ekrana Ekle**.
 
-1. ☰ → **Checklist yükle** (uçuşun CheckListRT PDF'i)
+1. **Checklist yükle** (kamyonun CheckListRT PDF'i) → kontrol o uçuş için başlar
 2. **Etiket okut** → kamera açılır, etiketlerin kare kodlarını sırayla çerçeveye getir
-3. Bitince **Yüklemeyi bitir**
+3. **Yüklemeyi bitir** → eksik varsa yükleme tamamlanmaz
+
+Bir yükleme eksiksiz bitmeden yeni checklist başlatılamaz. Henüz hiç etiket okutulmadıysa yükleme menüden iptal edilebilir.
 
 Veriler (checklist'ler ve okutma kayıtları) yalnızca cihazın tarayıcısında tutulur, hiçbir sunucuya gönderilmez.
 

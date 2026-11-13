@@ -93,15 +93,15 @@ video{width:100%;border-radius:14px;background:#000;max-height:50vh;object-fit:c
 
   <div class="status" id="status">
     <div class="fl" id="sFlight">YÜKLEME YOK</div>
-    <div class="big" id="sBig">Etiket okut</div>
+    <div class="big" id="sBig">Checklist yükle</div>
     <div class="small" id="sSmall"></div>
     <div class="prog hide" id="prog"><b id="pTxt">0 / 0</b><div class="bar"><i id="pBar"></i></div></div>
   </div>
 
   <button class="btn scan" id="photoBtn">📷 Etiket okut</button>
   <input type="file" id="photoIn" accept="image/*" capture="environment" class="hide">
-  <label class="btn sec hide" id="pdfBtnMain" for="pdfIn">📄 Checklist yükle</label>
-  <input type="file" id="pdfIn" accept="application/pdf,.pdf" multiple class="hide">
+  <label class="btn scan hide" id="pdfBtnMain" for="pdfIn">📄 Checklist yükle</label>
+  <input type="file" id="pdfIn" accept="application/pdf,.pdf" class="hide">
 
 
   <div id="listArea"></div>
@@ -308,21 +308,20 @@ function setStatus(kind,big,small,flash){
   if(flash){void s.offsetWidth;s.classList.add("flash")}
 }
 function addLog(kind,msg){if(!sess)return;sess.log.unshift({t:now(),k:kind,m:msg});if(sess.log.length>500)sess.log.length=500}
-function startSession(flight,date){
-  const key=flight+"|"+date;
-  sess={key:lists[key]?key:null,flight,date,scanned:{},extra:{},log:[],started:Date.now()};
-  addLog("ok",`Yükleme başladı: ${flight} ${date}`+(lists[key]?"":" (checklist yok, sadece uçuş kontrolü)"));
+function busy(){return !!(sess&&curList()&&Object.keys(sess.scanned).length>0&&missing().length>0)}
+function blockMsg(){setStatus("bad",`${sess.flight} BİTMEDİ`,`${missing().length} eksik var. Bu yükleme tamamlanmadan yenisi başlatılamaz.`,true);beep("bad")}
+function startSession(key){
+  const l=lists[key];if(!l)return;
+  sess={key,flight:l.flight,date:l.date,scanned:{},extra:{},log:[],started:Date.now()};
+  addLog("ok",`Yükleme başladı: ${l.flight} ${l.date}`);
+  showAll=false;setStatus("",l.flight,`${l.date} · etiketleri okut`);
 }
 function handleCode(raw,source){
   try{window.scrollTo({top:0,behavior:"smooth"})}catch(e){}
   const L=parseLabel(raw);
   if(!L){setStatus("bad","OKUNAMADI","Kod formatı tanınmadı: "+raw,true);beep("bad");if(sess){addLog("bad","Tanınmayan kod: "+raw);save()}render();return}
-  if(L.manualPos){
-    if(!sess){setStatus("warn","Önce etiket okut","Pozisyon girmek için aktif yükleme olmalı",true);beep("warn");return}
-    L.flight=sess.flight;L.date=sess.date;
-  }
-  let isNew=false;
-  if(!sess){startSession(L.flight,L.date);isNew=true}
+  if(!sess||!curList()){setStatus("bad","CHECKLIST YOK","Önce bu kamyonun checklist'ini yükle",true);beep("bad");render();return}
+  if(L.manualPos){L.flight=sess.flight;L.date=sess.date}
   // flight / date check
   if(L.flight!==sess.flight){
     setStatus("bad","YANLIŞ UÇUŞ",`Etiket: ${L.flight} · ${L.date} · poz. ${L.pos}`,true);beep("bad");
@@ -352,7 +351,7 @@ function handleCode(raw,source){
     }
     sess.scanned[L.pos]={t:now(),m:source==="manual"};
     const c=counts();
-    setStatus("ok",`✓ ${L.pos}`,(isNew?"Yeni yükleme başladı · ":"")+`${it.tl} · ${it.desc}${it.ret?" · DÖNÜŞ":""}`);beep("ok");
+    setStatus("ok",`✓ ${L.pos}`,`${it.tl} · ${it.desc}${it.ret?" · DÖNÜŞ":""}`);beep("ok");
     addLog("ok",`${L.pos} ${it.tl} ${it.desc}${tag}`);
   }else{
     sess.extra[L.pos]={t:now()};
@@ -381,12 +380,13 @@ function render(){
   const list=curList(),c=counts();
   $("prog").classList.toggle("hide",!list);
   if(list){$("pTxt").textContent=`${c.rd} / ${c.rt}`;$("pBar").style.width=(c.rt?100*c.rd/c.rt:0)+"%"}
-  $("pdfBtnMain").classList.toggle("hide",Object.keys(lists).length>0);
+  const active=!!(sess&&list);
+  $("photoBtn").classList.toggle("hide",!active);
+  $("pdfBtnMain").classList.toggle("hide",active);
+  $("finishBtn").parentElement.classList.toggle("hide",!active);
   let h="";
-  if(!sess){
-    h=Object.keys(lists).length?`<div class="empty">İlk etiketi okut, yükleme başlasın.</div>`:`<div class="empty">Önce uçuşun checklist PDF'ini yükle.</div>`;
-  }else if(!list){
-    h=`<div class="empty">Bu uçuşun checklist'i yüklü değil.<br>Yanlış uçuş kontrolü çalışıyor, eksik kontrolü için menüden checklist yükle.</div>`;
+  if(!active){
+    h=`<div class="empty">Kamyonun checklist PDF'ini yükle, kontrol o uçuş için başlasın.</div>`;
   }else{
     const miss=missing();
     h=`<div class="listHead"><b>${showAll?"Tüm liste":(miss.length?`Eksikler · ${miss.length}`:"Eksik yok ✓")}</b><button class="link" id="toggleAll">${showAll?"Sadece eksikler":"Tümünü göster"}</button></div>`;
@@ -420,21 +420,23 @@ function openMenu(){
   <label class="mi" for="photoIn"><span class="ic">🖼</span>Fotoğrafla okut</label>
   <button class="mi" id="mLog"><span class="ic">📋</span>Kayıt</button>
   <label class="mi"><span class="ic">🔥</span>Fırınları da say<input type="checkbox" id="mOven" ${settings.ovenRequired?"checked":""}></label>
-  <button class="mi" id="mNew" style="color:var(--bad)"><span class="ic">↺</span>Yeni yükleme</button>`);
+  <button class="mi" id="mNew" style="color:var(--bad)"><span class="ic">✕</span>Yüklemeyi iptal et</button>`);
   $("pdfIn").addEventListener("click",closeModal,{once:true});
   $("mLists").onclick=openLists;
   $("mManual").onclick=openManual;
   $("mLog").onclick=()=>openModal(`<h2>Kayıt</h2><div class="log">${sess&&sess.log.length?sess.log.map(l=>`<div class="${l.k}"><time>${l.t}</time>${esc(l.m)}</div>`).join(""):'<div class="muted">Kayıt yok.</div>'}</div><button class="btn sec" id="mClose">Kapat</button>`)||($("mClose").onclick=closeModal);
   $("mOven").onchange=e=>{settings.ovenRequired=e.target.checked;save();render()};
-  $("mNew").onclick=()=>{if(!sess){closeModal();return}confirmBox("Mevcut yükleme kapatılıp yenisine geçilsin mi?","Yeni yükleme",()=>{sess=null;save();setStatus("","Etiket okut","");render()},true)};
+  $("mNew").onclick=()=>{if(!sess){closeModal();return}
+    if(Object.keys(sess.scanned).length){closeModal();setStatus("bad","İPTAL EDİLEMEZ",`${sess.flight} için okutma başladı. Yükleme eksiksiz bitirilmeli.`,true);beep("bad");return}
+    confirmBox(`${sess.flight} yüklemesi iptal edilsin mi? (Henüz hiçbir etiket okutulmadı)`,"İptal et",()=>{sess=null;save();setStatus("","Checklist yükle","");render()},true)};
 }
 function openLists(){
   const keys=Object.keys(lists).sort((a,b)=>lists[b].loadedAt-lists[a].loadedAt);
   openModal(`<h2>Yüklü checklistler</h2>`+(keys.length?keys.map(k=>{const l=lists[k];return`<div class="mi" style="cursor:default"><span class="ic">${l.check&&l.check.ok===false?"⚠️":"📄"}</span><div><b>${esc(l.flight)}</b> · ${esc(l.date)}<div class="muted">${l.items.filter(isRequired).length} kalem</div></div><span class="sub"><button class="link" data-start="${esc(k)}">Başlat</button><button class="link" data-del="${esc(k)}" style="color:var(--muted)">Sil</button></span></div>`}).join(""):`<div class="empty">Henüz checklist yok.</div>`)+`<label class="btn sec" for="pdfIn">📄 Checklist yükle</label>`);
   $("sheet").onclick=e=>{
     const s=e.target.closest("[data-start]"),d=e.target.closest("[data-del]");
-    if(s){$("sheet").onclick=null;const l=lists[s.dataset.start];closeModal();startSession(l.flight,l.date);setStatus("","Etiket okut","Yükleme başladı");save();render()}
-    if(d){delete lists[d.dataset.del];if(sess&&sess.key===d.dataset.del)sess.key=null;save();render();openLists()}
+    if(s){$("sheet").onclick=null;const k=s.dataset.start;closeModal();if(sess&&sess.key===k)return;if(busy()){blockMsg();return}startSession(k);save();render()}
+    if(d){delete lists[d.dataset.del];if(sess&&sess.key===d.dataset.del)sess=null;save();render();openLists()}
   };
 }
 function openManual(){
@@ -465,21 +467,27 @@ document.addEventListener("keydown",e=>{
 });
 
 $("pdfIn").addEventListener("change",async e=>{
-  const files=[...e.target.files];e.target.value="";closeModal();
+  const files=[...e.target.files];e.target.value="";closeModal();let lastLoaded=null;
   for(const f of files){
     setStatus("","Checklist okunuyor…",f.name);
     try{
       const l=await parseChecklistPdf(new Uint8Array(await f.arrayBuffer()),f.name);
-      lists[l.key]=l;
-      if(sess&&!sess.key&&sess.flight===l.flight&&sess.date===l.date){sess.key=l.key;for(const c of Object.keys(sess.extra)){if(l.items.some(i=>i.code===c)){sess.scanned[c]=sess.extra[c];delete sess.extra[c]}}}
+      lists[l.key]=l;lastLoaded=l.key;
       if(l.check&&l.check.ok===false){setStatus("warn",`${l.flight} yüklendi — kontrol et`,l.check.msg,true);beep("warn")}
       else setStatus("ok",`✓ ${l.flight} yüklendi`,`${l.date} · ${l.items.filter(isRequired).length} kalem`);
     }catch(err){setStatus("bad","Checklist okunamadı",`${f.name}: ${err.message||err}`,true);beep("bad")}
+  }
+  if(lastLoaded&&!(lists[lastLoaded].check&&lists[lastLoaded].check.ok===false)){
+    if(sess&&sess.key===lastLoaded){/* aynı checklist tekrar yüklendi: devam */}
+    else if(busy())blockMsg();
+    else startSession(lastLoaded);
   }
   save();render();
 });
 
 $("listArea").addEventListener("click",e=>{
+  const pk=e.target.closest("[data-pick]");
+  if(pk){const l=lists[pk.dataset.pick];confirmBox(`${l.flight} · ${l.date} yüklemesi başlasın mı?`,"Başlat",()=>{startSession(pk.dataset.pick);save();render()});return}
   if(e.target.id==="toggleAll"){showAll=!showAll;render();return}
   const r=e.target.closest(".it[data-code]");if(!r||!sess)return;
   const code=r.dataset.code,s=sess.scanned[code];
@@ -501,18 +509,17 @@ function reportText(miss,forced,reason){
 function finishSheet(kind,title,sub,rep){
   openModal(`<div class="resbox" style="background:var(--${kind})"><b>${title}</b>${sub}</div><pre class="rep" id="rep">${esc(rep)}</pre><div class="row"><button class="btn sec" id="cp">Raporu kopyala</button><button class="btn okb" id="done">Yeni yükleme</button></div>`);
   $("cp").onclick=async()=>{try{await navigator.clipboard.writeText($("rep").textContent);$("cp").textContent="Kopyalandı ✓"}catch(e){const r=document.createRange();r.selectNodeContents($("rep"));const s=getSelection();s.removeAllRanges();s.addRange(r);$("cp").textContent="Seçildi"}};
-  $("done").onclick=()=>{sess=null;save();closeModal();setStatus("","Etiket okut","");render()};
+  $("done").onclick=()=>{if(lists[sess.key])lists[sess.key].done=true;sess=null;save();closeModal();setStatus("","Checklist yükle","Sıradaki kamyonun checklist'ini yükle");render()};
 }
 $("finishBtn").addEventListener("click",()=>{
-  if(!sess){setStatus("warn","Aktif yükleme yok","Önce etiket okut");return}
+  if(!sess){setStatus("warn","Aktif yükleme yok","Önce uçuş seç");return}
   const miss=missing(),l=curList();
   if(!l){finishSheet("warn","Eksik kontrolü yapılamadı","<br>Bu uçuşun checklist'i yüklü değil.",reportText([],false));return}
   if(!miss.length){beep("ok");addLog("ok","Yükleme TAMAM");finishSheet("ok","✓ YÜKLEME TAMAM","Tüm kalemler okundu.",reportText([],false));return}
   beep("bad");
-  openModal(`<div class="resbox" style="background:var(--bad)"><b>✕ ${miss.length} EKSİK</b>Kamyonu kapatmadan tamamla.</div>`+miss.map(itemRow).join("")+
-    `<button class="btn okb" id="back" style="margin-top:12px">Yüklemeye dön</button><details style="margin-top:10px"><summary class="muted">Eksikle kapat (supervisor)</summary><input type="text" id="reason" placeholder="Sebep" style="margin:10px 0"><button class="btn danger" id="force">Eksikle kapat</button></details>`);
+  openModal(`<div class="resbox" style="background:var(--bad)"><b>✕ ${miss.length} EKSİK</b>Eksikler okutulmadan yükleme tamamlanamaz.</div>`+miss.map(itemRow).join("")+
+    `<button class="btn okb" id="back" style="margin-top:12px">Yüklemeye dön</button>`);
   $("back").onclick=closeModal;
-  $("force").onclick=()=>{const r=$("reason").value.trim();if(!r){$("reason").focus();return}addLog("bad","EKSİKLE KAPATILDI: "+r);finishSheet("bad","Eksikle kapatıldı","",reportText(miss,true,r))};
 });
 
 /* ---------------- live camera ---------------- */
@@ -560,8 +567,9 @@ async function loop(){
 }
 
 /* ---------------- init ---------------- */
+if(sess&&(!sess.key||!lists[sess.key])){sess=null;save()}
 render();
-if(sess)setStatus("","Devam et","Kaldığın yerden etiket okut");
+if(sess)setStatus("",sess.flight,`${sess.date} · kaldığın yerden devam et`);else setStatus("","Checklist yükle","Kontrol, yüklenen checklist'in uçuşu için başlar");
 zx().catch(()=>{});
 </script>
 </body>
