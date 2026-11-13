@@ -1,33 +1,41 @@
-# Körük Yükleme Kontrol
+# Körük Kontrol
 
-Catering körüğünde kamyona yüklenen trolley/unit etiketlerini (DataMatrix) okuyup uçuşun checklist'iyle karşılaştıran web uygulaması.
+Checklist'teki malzemelerin kamyona **eksiksiz ve doğru uçuşla** yüklendiğini, trolley/unit etiketlerindeki kare kodlardan (DataMatrix) kontrol eden web uygulaması.
 
-- Yanlış uçuş / yanlış tarih → kırmızı alarm
-- Aynı pozisyon tekrar okutulursa → sarı uyarı
-- "Yüklemeyi bitir" → checklist'te olup okutulmayan kalemler listelenir
+**Adres:** https://eakman45.github.io/koruk-kontrol/ — iPhone'da Safari ile aç → Paylaş → *Ana Ekrana Ekle*. İlk açılıştan sonra internetsiz de çalışır.
 
 ## Kullanım
-iPhone'da Safari ile GitHub Pages adresini aç → Paylaş → **Ana Ekrana Ekle**.
-
-1. **Checklist yükle** (kamyonun CheckListRT PDF'i) → kontrol o uçuş için başlar
-2. **Etiket okut** → kamera açılır, etiketlerin kare kodlarını sırayla çerçeveye getir
-3. **Yüklemeyi bitir** → eksik varsa yükleme tamamlanmaz
-
-Tamamlanan yükleme, ☰ → **Tamamlanan yüklemeler** sekmesine taşınır (rapor ile birlikte) ve yüklü checklistlerden çıkar.
-
-Bir yükleme eksiksiz bitmeden yeni checklist başlatılamaz. Henüz hiç etiket okutulmadıysa yükleme menüden iptal edilebilir.
-
-Veriler (checklist'ler ve okutma kayıtları) yalnızca cihazın tarayıcısında tutulur, hiçbir sunucuya gönderilmez.
+1. **Checklist yükle** — kamyonun CheckListRT PDF'i. Kontrol o uçuş için başlar.
+2. **Etiket okut** — kamera açılır; kare kodları sırayla çerçeveye getir. Bluetooth barkod okuyucu da doğrudan çalışır.
+3. **Yüklemeyi tamamla** — eksik varsa tamamlanmaz. Tamamlanan yükleme raporuyla birlikte *Tamamlanan yüklemeler*e düşer.
 
 ## Kurallar
+| Durum | Sonuç |
+|---|---|
+| Uçuş + tarih aynı, pozisyon checklist'te | ✓ |
+| Farklı uçuş | Yanlış uçuş (kırmızı alarm, canlı tarama durur) |
+| Aynı uçuş, farklı tarih | Yanlış tarih (kırmızı) |
+| Pozisyon tekrar okutuldu | Zaten okundu (sarı) |
+| Pozisyon checklist'te yok | Listede yok (sarı) |
+
+- Checklist'te adı geçen her kalem zorunludur. İstisnalar: galley fırınları (etiketsiz) ve ONTRAY sepetleri (dönüş trolleylerinin içinde).
+- Dönüş fırın çantası (CANTA-FIRIN) adedi = dönüş bacağı Y/C sıcak yemek ÷ 32, yukarı yuvarlanır.
+- YC sıcak havlu kargoya verilmez; checklist'te kargo bölümünde görünürse uyarı verilir.
+- Okutma başladıktan sonra yükleme iptal edilemez; aktif yükleme bitmeden yeni checklist başlatılamaz.
 - Etiket kodu: `POZİSYON -TKxxxx-GG.AA.YY-C-1-PBLN`
-- Checklist'teki tüm kalemler zorunludur; istisnalar: galley fırınları (etiketsiz) ve ONTRAY sepetleri (dönüş trolleylerinin içinde).
-- Kargo pozisyonları checklist'in CAR bölümünden okunur. Dönüş fırın çantası (CANTA-FIRIN) adedi: dönüş bacağı Y/C sıcak yemek sayısı ÷ 32 (bir fırın inserti 8 sıra x 4), yukarı yuvarlanır.
 
-## Geliştirme
-`index.html` tek dosyadır (pdf.js ve zxing-wasm gömülü). Kaynak `src/app.html`; derlemek için:
+## Veri
+Tüm veriler yalnızca cihazın tarayıcısında tutulur, hiçbir sunucuya gönderilmez. Checklist'teki yolcu isimleri okunmaz ve saklanmaz.
 
+## Kod yapısı
 ```
-npm i zxing-wasm@2 pdfjs-dist@3.11.174
-python3 src/build.py   # src.html -> index.html
+index.html, css/app.css     arayüz
+js/parser.js                CheckListRT PDF ayrıştırıcı
+js/rules.js                 kontrol kuralları (saf fonksiyonlar)
+js/label.js                 etiket kodu ayrıştırıcı
+js/scanner.js               kamera / fotoğraf / okuyucu
+js/store.js                 yerel depolama (ileride sunucu istemcisiyle değiştirilecek katman)
+js/app.js                   ekranlar ve akış
+sw.js                       çevrimdışı çalışma
+vendor/                     pdf.js 3.11, zxing-wasm 2.2 (okuyucu)
 ```
