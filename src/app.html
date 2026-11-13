@@ -144,9 +144,10 @@ function beep(kind){try{if(kind==="ok")tone(1400,.09,0,"sine",.3);else if(kind==
 // DataMatrix content, e.g. "620F -TK0667-13.11.26-C-1-0"
 function parseLabel(raw){
   const s=String(raw).trim().toUpperCase();
-  const m=s.match(/^\s*([A-Z0-9\/]+?)\s*-\s*(TK\d{3,5})\s*-\s*(\d{2}\.\d{2}\.\d{2})\s*(?:-\s*([A-Z0-9]*))?\s*(?:-\s*([A-Z0-9]*))?\s*(?:-\s*([A-Z0-9]*))?/);
+  const m=s.match(/^\s*([A-Z0-9\/][A-Z0-9\/\-]*?)\s*-\s*(TK\d{3,5})\s*-\s*(\d{2}\.\d{2}\.\d{2})\s*(?:-\s*([A-Z0-9]*))?\s*(?:-\s*([A-Z0-9]*))?\s*(?:-\s*([A-Z0-9]*))?/);
   if(m)return{pos:m[1],flight:normFlight(m[2]),date:m[3],x1:m[4]||"",x2:m[5]||"",pbln:m[6]||"",raw:s};
-  if(/^[A-Z\/]{0,6}\d{1,6}[A-Z]?$/.test(s))return{pos:s,flight:null,date:null,raw:s,manualPos:true};
+  const l=typeof curList==="function"?curList():null;
+  if((l&&l.items.some(i=>i.code===s))||/^[A-Z\/]{0,6}\d{1,6}[A-Z]?$/.test(s)||/^[A-Z]+-[A-Z]+\d*$/.test(s))return{pos:s,flight:null,date:null,raw:s,manualPos:true};
   return null;
 }
 function normFlight(f){const m=String(f).toUpperCase().match(/TK0*(\d+)/);return m?"TK"+m[1].padStart(4,"0"):f}
