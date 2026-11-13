@@ -13,6 +13,8 @@ iPhone'da Safari ile GitHub Pages adresini aç → Paylaş → **Ana Ekrana Ekle
 2. **Etiket okut** → kamera açılır, etiketlerin kare kodlarını sırayla çerçeveye getir
 3. **Yüklemeyi bitir** → eksik varsa yükleme tamamlanmaz
 
+Tamamlanan yükleme, ☰ → **Tamamlanan yüklemeler** sekmesine taşınır (rapor ile birlikte) ve yüklü checklistlerden çıkar.
+
 Bir yükleme eksiksiz bitmeden yeni checklist başlatılamaz. Henüz hiç etiket okutulmadıysa yükleme menüden iptal edilebilir.
 
 Veriler (checklist'ler ve okutma kayıtları) yalnızca cihazın tarayıcısında tutulur, hiçbir sunucuya gönderilmez.

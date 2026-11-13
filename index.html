@@ -171,7 +171,8 @@ const LS={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}
 let lists=LS.get("kk_lists",{});        // key "TK1665|30.06.26" -> {flight,date,items:[...],file}
 let sess=LS.get("kk_sess",null);        // {key,flight,date,scanned:{code:{t,m}},log:[],started}
 let settings=LS.get("kk_set",{ovenRequired:false});
-const save=()=>{LS.set("kk_lists",lists);LS.set("kk_sess",sess);LS.set("kk_set",settings)};
+let hist=LS.get("kk_hist",[]);          // tamamlanan yüklemeler: [{key,flight,date,at,rd,rt,alarms,report}]
+const save=()=>{LS.set("kk_hist",hist);LS.set("kk_lists",lists);LS.set("kk_sess",sess);LS.set("kk_set",settings)};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const now=()=>new Date().toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
@@ -445,17 +446,28 @@ function openMenu(){
   <button class="mi" id="mLists"><span class="ic">🗂</span>Yüklü checklistler<span class="sub">${n}</span></button>
   <button class="mi" id="mManual"><span class="ic">⌨️</span>Elle kod gir</button>
   <label class="mi" for="photoIn"><span class="ic">🖼</span>Fotoğrafla okut</label>
+  <button class="mi" id="mHist"><span class="ic">✅</span>Tamamlanan yüklemeler<span class="sub">${hist.length}</span></button>
   <button class="mi" id="mLog"><span class="ic">📋</span>Kayıt</button>
   <label class="mi"><span class="ic">🔥</span>Fırınları da say<input type="checkbox" id="mOven" ${settings.ovenRequired?"checked":""}></label>
   <button class="mi" id="mNew" style="color:var(--bad)"><span class="ic">✕</span>Yüklemeyi iptal et</button>`);
   $("pdfIn").addEventListener("click",closeModal,{once:true});
   $("mLists").onclick=openLists;
   $("mManual").onclick=openManual;
+  $("mHist").onclick=openHist;
   $("mLog").onclick=()=>openModal(`<h2>Kayıt</h2><div class="log">${sess&&sess.log.length?sess.log.map(l=>`<div class="${l.k}"><time>${l.t}</time>${esc(l.m)}</div>`).join(""):'<div class="muted">Kayıt yok.</div>'}</div><button class="btn sec" id="mClose">Kapat</button>`)||($("mClose").onclick=closeModal);
   $("mOven").onchange=e=>{settings.ovenRequired=e.target.checked;save();render()};
   $("mNew").onclick=()=>{if(!sess){closeModal();return}
     if(Object.keys(sess.scanned).length){closeModal();setStatus("bad","İPTAL EDİLEMEZ",`${sess.flight} için okutma başladı. Yükleme eksiksiz bitirilmeli.`,true);beep("bad");return}
     confirmBox(`${sess.flight} yüklemesi iptal edilsin mi? (Henüz hiçbir etiket okutulmadı)`,"İptal et",()=>{sess=null;save();setStatus("","Checklist yükle","");render()},true)};
+}
+function openHist(){
+  openModal(`<h2>Tamamlanan yüklemeler</h2>`+(hist.length?hist.map((h,i)=>`<button class="mi" data-h="${i}"><span class="ic" style="color:var(--ok)">✓</span><div><b>${esc(h.flight)}</b> · ${esc(h.date)}<div class="muted">${esc(h.at)} · ${h.rd}/${h.rt}${h.alarms?` · <span style="color:var(--bad)">${h.alarms} alarm</span>`:""}</div></div><span class="sub">›</span></button>`).join(""):`<div class="empty">Henüz tamamlanan yükleme yok.</div>`)+`<button class="btn sec" id="hClose" style="margin-top:10px">Kapat</button>`);
+  $("hClose").onclick=closeModal;
+  $("sheet").onclick=e=>{const b=e.target.closest("[data-h]");if(!b)return;$("sheet").onclick=null;const h=hist[+b.dataset.h];
+    openModal(`<h2>${esc(h.flight)} · ${esc(h.date)}</h2><pre class="rep" id="rep">${esc(h.report)}</pre><div class="row"><button class="btn sec" id="hBack">Geri</button><button class="btn okb" id="cp">Raporu kopyala</button></div>`);
+    $("hBack").onclick=openHist;
+    $("cp").onclick=async()=>{try{await navigator.clipboard.writeText($("rep").textContent);$("cp").textContent="Kopyalandı ✓"}catch(e){const r=document.createRange();r.selectNodeContents($("rep"));const s=getSelection();s.removeAllRanges();s.addRange(r);$("cp").textContent="Seçildi"}};
+  };
 }
 function openLists(){
   const keys=Object.keys(lists).sort((a,b)=>lists[b].loadedAt-lists[a].loadedAt);
@@ -506,8 +518,11 @@ $("pdfIn").addEventListener("change",async e=>{
   }
   if(lastLoaded){
     const L2=lists[lastLoaded];
+    const doneBefore=hist.find(h=>h.key===lastLoaded);
     if(sess&&sess.key===lastLoaded){/* aynı checklist tekrar yüklendi: devam */}
     else if(busy())blockMsg();
+    else if(doneBefore){setStatus("warn",`${L2.flight} zaten tamamlandı`,`${doneBefore.at} · ${doneBefore.rd}/${doneBefore.rt}`,true);beep("warn");
+      setTimeout(()=>confirmBox(`${L2.flight} · ${L2.date} ${doneBefore.at} tarihinde tamamlandı. Yine de yeni kontrol başlatılsın mı?`,"Başlat",()=>{startSession(lastLoaded);save();render()}),50)}
     else{startSession(lastLoaded);if(L2.oven)setStatus("",L2.flight,`${L2.date} · dönüş Y/C ${L2.oven.pax} yemek → ${L2.oven.need} fırın çanta`);if(L2.check&&L2.check.ok===false){setStatus("warn",`${L2.flight} · checklist'i kontrol et`,L2.check.msg+". Liste checklist satırlarına göre oluşturuldu.",true);beep("warn")}}
   }
   save();render();
@@ -536,9 +551,11 @@ function reportText(miss,forced,reason){
   return t;
 }
 function finishSheet(kind,title,sub,rep){
-  openModal(`<div class="resbox" style="background:var(--${kind})"><b>${title}</b>${sub}</div><pre class="rep" id="rep">${esc(rep)}</pre><div class="row"><button class="btn sec" id="cp">Raporu kopyala</button><button class="btn okb" id="done">Yeni yükleme</button></div>`);
+  openModal(`<div class="resbox" style="background:var(--${kind})"><b>${title}</b>${sub}</div><pre class="rep" id="rep">${esc(rep)}</pre><div class="row"><button class="btn sec" id="cp">Raporu kopyala</button><button class="btn okb" id="done">${kind==="ok"?"Tamamla":"Kapat"}</button></div>`);
   $("cp").onclick=async()=>{try{await navigator.clipboard.writeText($("rep").textContent);$("cp").textContent="Kopyalandı ✓"}catch(e){const r=document.createRange();r.selectNodeContents($("rep"));const s=getSelection();s.removeAllRanges();s.addRange(r);$("cp").textContent="Seçildi"}};
-  $("done").onclick=()=>{if(lists[sess.key])lists[sess.key].done=true;sess=null;save();closeModal();setStatus("","Checklist yükle","Sıradaki kamyonun checklist'ini yükle");render()};
+  $("done").onclick=()=>{
+    if(kind==="ok"){const c=counts();hist.unshift({key:sess.key,flight:sess.flight,date:sess.date,at:new Date().toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}),rd:c.rd,rt:c.rt,alarms:sess.log.filter(x=>x.k==="bad").length,report:rep});if(hist.length>300)hist.length=300;delete lists[sess.key]}
+    sess=null;save();closeModal();setStatus("","Checklist yükle","Sıradaki kamyonun checklist'ini yükle");render()};
 }
 $("finishBtn").addEventListener("click",()=>{
   if(!sess){setStatus("warn","Aktif yükleme yok","Önce uçuş seç");return}
