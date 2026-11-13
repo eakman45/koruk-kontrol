@@ -244,7 +244,10 @@ async function parseChecklistPdf(buf,fileName){
   let oven=null;const legs=Object.keys(paxY).map(Number).sort((a,b)=>a-b);
   const ovenRows=arr.filter(i=>i.tl==="Fırın çanta").length;
   if(ovenRows&&legs.length>1){const leg=legs[legs.length-1],pax=paxY[leg];oven={leg,pax,need:Math.ceil(pax/OVEN_CAP),rows:ovenRows,summary:summary["BAG-FIRIN"]??null}}
-  return{flight,date,key:flight+"|"+date,items:arr,file:fileName,loadedAt:Date.now(),oven,check:checkSummary(arr,summary,oven)};
+  // Operasyon kuralı: YC sıcak havlu asla kargoya verilmez (uçakta uygun pozisyona yerleştirilir)
+  const anoms=arr.filter(i=>i.galley==="CARGO"&&/SICAK HAVLU/.test(i.desc)).map(i=>({code:i.code,msg:`${i.code} sıcak havlu kargo pozisyonunda. Sıcak havlu kargoya verilmez; uçakta uygun pozisyona yerleştirilmeli.`}));
+  arr.forEach(i=>{if(anoms.some(a=>a.code===i.code))i.warn="kargoya verilmez"});
+  return{flight,date,key:flight+"|"+date,items:arr,file:fileName,loadedAt:Date.now(),oven,anoms,check:checkSummary(arr,summary,oven)};
 }
 
 /* ---------------- barcode reading ---------------- */
@@ -358,7 +361,8 @@ function itemRow(it){
   const note=isOntray(it)?" · trolley içinde":(it.tl==="Oven"&&!req?" · etiketsiz":(qq?` · ${qq.need} adet yeterli`:""));
   if(it.virtual)return `<div class="it"><div class="mk"></div><div class="pc">${esc(it.missN)} ${esc(it.tl)}</div><div class="ds">${esc(it.desc)}</div></div>`;
   const q=it.tl==="Fırın çanta"&&ovenQuota(curList());
-  return `<div class="it ${s?(s.m?"manual":"done"):""} ${req||q?"":"na"}" data-code="${esc(it.code)}"><div class="mk">${s?(s.m?"E":"✓"):""}</div><div class="pc">${esc(it.code)}</div><div class="ds">${esc(it.tl)} · ${esc(it.desc)}${it.ret?' · <span class="ret">DÖNÜŞ</span>':""}${note}</div></div>`;
+  const wn=it.warn?` · <b style="color:#b07800">⚠ ${esc(it.warn)}</b>`:"";
+  return `<div class="it ${s?(s.m?"manual":"done"):""} ${req||q?"":"na"}" data-code="${esc(it.code)}"><div class="mk">${s?(s.m?"E":"✓"):""}</div><div class="pc">${esc(it.code)}</div><div class="ds">${esc(it.tl)} · ${esc(it.desc)}${it.ret?' · <span class="ret">DÖNÜŞ</span>':""}${note}${wn}</div></div>`;
 }
 function render(){
   $("sFlight").textContent=sess?`${sess.flight} · ${sess.date}`:"YÜKLEME YOK";
@@ -480,7 +484,8 @@ $("pdfIn").addEventListener("change",async e=>{
     else if(busy())blockMsg();
     else if(doneBefore){setStatus("warn",`${L2.flight} zaten tamamlandı`,`${doneBefore.at} · ${doneBefore.rd}/${doneBefore.rt}`,true);beep("warn");
       setTimeout(()=>confirmBox(`${L2.flight} · ${L2.date} ${doneBefore.at} tarihinde tamamlandı. Yine de yeni kontrol başlatılsın mı?`,"Başlat",()=>{startSession(lastLoaded);save();render()}),50)}
-    else{startSession(lastLoaded);if(L2.oven)setStatus("",L2.flight,`${L2.date} · dönüş Y/C ${L2.oven.pax} yemek → ${L2.oven.need} fırın çanta`);if(L2.check&&L2.check.ok===false){setStatus("warn",`${L2.flight} · checklist'i kontrol et`,L2.check.msg+". Liste checklist satırlarına göre oluşturuldu.",true);beep("warn")}}
+    else{startSession(lastLoaded);if(L2.oven)setStatus("",L2.flight,`${L2.date} · dönüş Y/C ${L2.oven.pax} yemek → ${L2.oven.need} fırın çanta`);if(L2.check&&L2.check.ok===false){setStatus("warn",`${L2.flight} · checklist'i kontrol et`,L2.check.msg+". Liste checklist satırlarına göre oluşturuldu.",true);beep("warn")}
+      if(L2.anoms&&L2.anoms.length){setStatus("warn",`${L2.flight} · checklist'te hata`,L2.anoms.map(a=>a.msg).join(" "),true);beep("warn");addLog("warn","Checklist uyarısı: "+L2.anoms.map(a=>a.msg).join(" "))}}
   }
   save();render();
 });
@@ -500,6 +505,7 @@ function reportText(miss,forced,reason){
   let t=`KÖRÜK YÜKLEME KONTROL\n${sess.flight} ${sess.date}\nBitiş: ${new Date().toLocaleString("tr-TR")}\n`;
   if(l)t+=`Okunan: ${c.rd}/${c.rt}\n`;
   if(miss.length)t+=`EKSİK (${missCount(miss)}): `+miss.map(m=>m.virtual?`${m.missN} fırın çanta`:`${m.code} ${m.tl}`).join(", ")+"\n";
+  if(l&&l.anoms&&l.anoms.length)t+=`Checklist uyarısı: ${l.anoms.map(a=>a.msg).join(" ")}\n`;
   if(l&&l.oven)t+=`Fırın çanta: ${ovenHave(l)}/${l.oven.need} (dönüş Y/C ${l.oven.pax} yemek ÷ ${OVEN_CAP})\n`;
   const ex=Object.keys(sess.extra);if(ex.length)t+=`Liste dışı: ${ex.join(", ")}\n`;
   const bad=sess.log.filter(x=>x.k==="bad");if(bad.length)t+=`Alarmlar (${bad.length}):\n`+bad.map(b=>`  ${b.t} ${b.m}`).reverse().join("\n")+"\n";
