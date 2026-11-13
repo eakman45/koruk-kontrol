@@ -155,11 +155,12 @@ function normFlight(f){const m=String(f).toUpperCase().match(/TK0*(\d+)/);return
 /* ---------------- checklist PDF parsing ---------------- */
 pdfjsLib.GlobalWorkerOptions.workerPort=new Worker(URL.createObjectURL(new Blob([$("pdfWorkerSrc").textContent],{type:"text/javascript"})));
 const SUM_CATS={"STANDARD UNIT (S/U)":"Unit","CUPBOARD":"Cupboard","FULL SIZE TROLLEY":"Full size","HALF SIZE TROLLEY":"Half size","OVEN":"Oven","PLASTIC BAG":"Poşet","BAG":"Çanta","BAG-FIRIN":"Fırın çanta","ICE UNIT":"Buz unit","STRAFOR BOX":"Strafor"};
-function checkSummary(items,summary){
+const OVEN_CAP=32;
+function checkSummary(items,summary,oven){
   const cats=Object.keys(summary).filter(k=>SUM_CATS[k]);
   if(!cats.length)return{ok:null,msg:"Checklist özet tablosu bulunamadı"};
   const diffs=[];let sum=0;
-  for(const c of cats){const n=items.filter(i=>i.tl===SUM_CATS[c]).length;sum+=n;if(n!==summary[c])diffs.push(`${c} özette ${summary[c]}, satırlarda ${n}`)}
+  for(const c of cats){let n=items.filter(i=>i.tl===SUM_CATS[c]).length;if(c==="BAG-FIRIN"&&oven){if(summary[c]!==oven.need)diffs.push(`BAG-FIRIN özette ${summary[c]}, hesaplanan ${oven.need} (${oven.pax} yemek ÷ ${OVEN_CAP})`);sum+=summary[c];continue}sum+=n;if(n!==summary[c])diffs.push(`${c} özette ${summary[c]}, satırlarda ${n}`)}
   for(const [c,tl] of Object.entries(SUM_CATS)){if(summary[c]==null){const n=items.filter(i=>i.tl===tl).length;if(n)diffs.push(`${c}: PDF özetinde yok, okunan ${n}`)}}
   if(summary["TOTAL COUNT"]!=null&&summary["TOTAL COUNT"]!==sum&&!diffs.length)diffs.push(`TOPLAM: PDF ${summary["TOTAL COUNT"]}, okunan ${sum}`);
   return diffs.length?{ok:false,msg:"Checklist satırları ile alttaki özet tablo farklı: "+diffs.join("; ")}:{ok:true,msg:`Checklist özetiyle birebir uyumlu (${sum} pozisyon)`};
@@ -184,11 +185,18 @@ function typeLabel(t){
 }
 async function parseChecklistPdf(buf,fileName){
   const doc=await pdfjsLib.getDocument({data:buf}).promise;
-  let flight=null,date=null;const items=new Map(),summary={};
+  let flight=null,date=null;const items=new Map(),summary={},paxY={};
   for(let p=1;p<=doc.numPages;p++){
     const tc=await (await doc.getPage(p)).getTextContent();
     const its=tc.items.filter(i=>i.str&&i.str.trim()).map(i=>({s:i.str.trim(),x:i.transform[4],y:i.transform[5]}));
     for(const i of its){const m=i.s.match(/Flight No:\s*(TK\s*\d+)\s*\/\s*Flight Date:\s*(\d{2})\.(\d{2})\.(\d{2,4})/i);if(m&&!flight){flight=normFlight(m[1].replace(/\s/g,""));date=`${m[2]}.${m[3]}.${m[4].slice(-2)}`}}
+    // yolcu/yemek satırları: "2 IST Y/C 122 HMYD - Hot Meal YC"
+    for(const i of its){
+      if(i.s!=="Y/C")continue;
+      const row=its.filter(j=>Math.abs(j.y-i.y)<2).sort((a,b)=>a.x-b.x);
+      const k=row.indexOf(i),leg=row.slice(0,k).find(j=>/^\d{1,2}$/.test(j.s)),pax=row.slice(k+1).find(j=>/^\d{1,4}$/.test(j.s));
+      if(leg&&pax&&paxY[leg.s]==null)paxY[leg.s]=Number(pax.s);
+    }
     // summary table ("Description / Position Count / Seal Count")
     for(const i of its){
       if(!SUM_CATS[i.s]&&i.s!=="TOTAL COUNT")continue;
@@ -231,7 +239,11 @@ async function parseChecklistPdf(buf,fileName){
   if(!flight)throw new Error("PDF'te 'Flight No / Flight Date' bulunamadı");
   if(!items.size)throw new Error("PDF'te pozisyon satırı bulunamadı");
   const arr=[...items.values()];
-  return{flight,date,key:flight+"|"+date,items:arr,file:fileName,loadedAt:Date.now(),check:checkSummary(arr,summary)};
+  // Dönüş fırın çantası ihtiyacı: dönüş bacağı Y/C sıcak yemek sayısı ÷ 32 (bir fırın inserti = 8 sıra x 4)
+  let oven=null;const legs=Object.keys(paxY).map(Number).sort((a,b)=>a-b);
+  const ovenRows=arr.filter(i=>i.tl==="Fırın çanta").length;
+  if(ovenRows&&legs.length>1){const leg=legs[legs.length-1],pax=paxY[leg];oven={leg,pax,need:Math.ceil(pax/OVEN_CAP),rows:ovenRows,summary:summary["BAG-FIRIN"]??null}}
+  return{flight,date,key:flight+"|"+date,items:arr,file:fileName,loadedAt:Date.now(),oven,check:checkSummary(arr,summary,oven)};
 }
 
 /* ---------------- barcode reading ---------------- */
@@ -259,7 +271,8 @@ async function decodeFile(file){
 function curList(){return sess&&sess.key?lists[sess.key]:null}
 // Checklist'teki her kalem zorunlu. İstisnalar: galley fırınları (etiketsiz) ve ONTRAY sepetleri (dönüş trolleylerinin içinde gider).
 function isOntray(it){return it.galley==="ONTRAY"||it.tl==="SEPET"}
-function isRequired(it){if(isOntray(it))return false;return it.tl!=="Oven"||settings.ovenRequired}
+function ovenQuota(l){return l&&l.oven?l.oven:null}
+function isRequired(it){if(isOntray(it))return false;if(it.tl==="Fırın çanta"&&ovenQuota(curList()))return false;return it.tl!=="Oven"||settings.ovenRequired}
 function setStatus(kind,big,small,flash){
   if(typeof onLiveResult==="function"&&liveOn&&kind)onLiveResult(kind,big,small||"");
   const s=$("status");s.className="status "+(kind||"");
@@ -268,7 +281,7 @@ function setStatus(kind,big,small,flash){
 }
 function addLog(kind,msg){if(!sess)return;sess.log.unshift({t:now(),k:kind,m:msg});if(sess.log.length>500)sess.log.length=500}
 function busy(){return !!(sess&&curList()&&Object.keys(sess.scanned).length>0&&missing().length>0)}
-function blockMsg(){setStatus("bad",`${sess.flight} BİTMEDİ`,`${missing().length} eksik var. Bu yükleme tamamlanmadan yenisi başlatılamaz.`,true);beep("bad")}
+function blockMsg(){setStatus("bad",`${sess.flight} BİTMEDİ`,`${missCount(missing())} eksik var. Bu yükleme tamamlanmadan yenisi başlatılamaz.`,true);beep("bad")}
 function startSession(key){
   const l=lists[key];if(!l)return;
   sess={key,flight:l.flight,date:l.date,scanned:{},extra:{},log:[],started:Date.now()};
@@ -322,17 +335,29 @@ function handleCode(raw,source){
 function counts(){
   const list=curList();if(!list)return{rd:0,rt:0,od:0,ot:0};
   let rd=0,rt=0,od=0,ot=0;
-  for(const it of list.items){const d=!!sess.scanned[it.code];if(isRequired(it)){rt++;if(d)rd++}else{ot++;if(d)od++}}
+  for(const it of list.items){const d=!!sess.scanned[it.code];if(isRequired(it)){rt++;if(d)rd++}else if(!(it.tl==="Fırın çanta"&&list.oven)){ot++;if(d)od++}}
+  const q=ovenQuota(list);if(q){rt+=q.need;rd+=Math.min(q.need,ovenHave(list))}
   return{rd,rt,od,ot};
 }
-function missing(){const l=curList();return l?l.items.filter(it=>isRequired(it)&&!sess.scanned[it.code]):[]}
+function missCount(m){return m.reduce((a,x)=>a+(x.virtual?x.missN:1),0)}
+function ovenHave(l){return l.items.filter(i=>i.tl==="Fırın çanta"&&sess.scanned[i.code]).length}
+function missing(){
+  const l=curList();if(!l)return[];
+  const m=l.items.filter(it=>isRequired(it)&&!sess.scanned[it.code]);
+  const q=ovenQuota(l);
+  if(q){const h=ovenHave(l);if(h<q.need)m.unshift({code:"FIRIN",tl:"Fırın çanta",desc:`${h} / ${q.need} okundu · dönüş Y/C ${q.pax} yemek ÷ ${OVEN_CAP}`,galley:"CAR",ret:true,virtual:true,missN:q.need-h})}
+  return m;
+}
 
 /* ---------------- rendering ---------------- */
 let showAll=false;
 function itemRow(it){
   const s=sess&&sess.scanned[it.code],req=isRequired(it);
-  const note=isOntray(it)?" · trolley içinde":(it.tl==="Oven"&&!req?" · etiketsiz":"");
-  return `<div class="it ${s?(s.m?"manual":"done"):""} ${req?"":"na"}" data-code="${esc(it.code)}"><div class="mk">${s?(s.m?"E":"✓"):""}</div><div class="pc">${esc(it.code)}</div><div class="ds">${esc(it.tl)} · ${esc(it.desc)}${it.ret?' · <span class="ret">DÖNÜŞ</span>':""}${note}</div></div>`;
+  const qq=it.tl==="Fırın çanta"&&ovenQuota(curList());
+  const note=isOntray(it)?" · trolley içinde":(it.tl==="Oven"&&!req?" · etiketsiz":(qq?` · ${qq.need} adet yeterli`:""));
+  if(it.virtual)return `<div class="it"><div class="mk"></div><div class="pc">${esc(it.missN)} ${esc(it.tl)}</div><div class="ds">${esc(it.desc)}</div></div>`;
+  const q=it.tl==="Fırın çanta"&&ovenQuota(curList());
+  return `<div class="it ${s?(s.m?"manual":"done"):""} ${req||q?"":"na"}" data-code="${esc(it.code)}"><div class="mk">${s?(s.m?"E":"✓"):""}</div><div class="pc">${esc(it.code)}</div><div class="ds">${esc(it.tl)} · ${esc(it.desc)}${it.ret?' · <span class="ret">DÖNÜŞ</span>':""}${note}</div></div>`;
 }
 function render(){
   $("sFlight").textContent=sess?`${sess.flight} · ${sess.date}`:"YÜKLEME YOK";
@@ -348,7 +373,7 @@ function render(){
     h=`<div class="empty">Kamyonun checklist PDF'ini yükle, kontrol o uçuş için başlasın.</div>`;
   }else{
     const miss=missing();
-    h=`<div class="listHead"><b>${showAll?"Tüm liste":(miss.length?`Eksikler · ${miss.length}`:"Eksik yok ✓")}</b><button class="link" id="toggleAll">${showAll?"Sadece eksikler":"Tümünü göster"}</button></div>`;
+    h=`<div class="listHead"><b>${showAll?"Tüm liste":(miss.length?`Eksikler · ${missCount(miss)}`:"Eksik yok ✓")}</b><button class="link" id="toggleAll">${showAll?"Sadece eksikler":"Tümünü göster"}</button></div>`;
     if(showAll){
       const groups={};list.items.forEach(it=>{(groups[it.galley||"—"]??=[]).push(it)});
       for(const [g,arr] of Object.entries(groups))h+=`<div class="gal">${esc(g)}</div>`+arr.map(itemRow).join("");
@@ -440,7 +465,7 @@ $("pdfIn").addEventListener("change",async e=>{
     const L2=lists[lastLoaded];
     if(sess&&sess.key===lastLoaded){/* aynı checklist tekrar yüklendi: devam */}
     else if(busy())blockMsg();
-    else{startSession(lastLoaded);if(L2.check&&L2.check.ok===false){setStatus("warn",`${L2.flight} · checklist'i kontrol et`,L2.check.msg+". Liste checklist satırlarına göre oluşturuldu.",true);beep("warn")}}
+    else{startSession(lastLoaded);if(L2.oven)setStatus("",L2.flight,`${L2.date} · dönüş Y/C ${L2.oven.pax} yemek → ${L2.oven.need} fırın çanta`);if(L2.check&&L2.check.ok===false){setStatus("warn",`${L2.flight} · checklist'i kontrol et`,L2.check.msg+". Liste checklist satırlarına göre oluşturuldu.",true);beep("warn")}}
   }
   save();render();
 });
@@ -459,7 +484,8 @@ function reportText(miss,forced,reason){
   const c=counts(),l=curList();
   let t=`KÖRÜK YÜKLEME KONTROL\n${sess.flight} ${sess.date}\nBitiş: ${new Date().toLocaleString("tr-TR")}\n`;
   if(l)t+=`Okunan: ${c.rd}/${c.rt}\n`;
-  if(miss.length)t+=`EKSİK (${miss.length}): `+miss.map(m=>`${m.code} ${m.tl}`).join(", ")+"\n";
+  if(miss.length)t+=`EKSİK (${missCount(miss)}): `+miss.map(m=>m.virtual?`${m.missN} fırın çanta`:`${m.code} ${m.tl}`).join(", ")+"\n";
+  if(l&&l.oven)t+=`Fırın çanta: ${ovenHave(l)}/${l.oven.need} (dönüş Y/C ${l.oven.pax} yemek ÷ ${OVEN_CAP})\n`;
   const ex=Object.keys(sess.extra);if(ex.length)t+=`Liste dışı: ${ex.join(", ")}\n`;
   const bad=sess.log.filter(x=>x.k==="bad");if(bad.length)t+=`Alarmlar (${bad.length}):\n`+bad.map(b=>`  ${b.t} ${b.m}`).reverse().join("\n")+"\n";
   const man=Object.entries(sess.scanned).filter(([k,v])=>v.m).map(([k])=>k);if(man.length)t+=`Elle onaylanan: ${man.join(", ")}\n`;
@@ -477,7 +503,7 @@ $("finishBtn").addEventListener("click",()=>{
   if(!l){finishSheet("warn","Eksik kontrolü yapılamadı","<br>Bu uçuşun checklist'i yüklü değil.",reportText([],false));return}
   if(!miss.length){beep("ok");addLog("ok","Yükleme TAMAM");finishSheet("ok","✓ YÜKLEME TAMAM","Tüm kalemler okundu.",reportText([],false));return}
   beep("bad");
-  openModal(`<div class="resbox" style="background:var(--bad)"><b>✕ ${miss.length} EKSİK</b>Eksikler okutulmadan yükleme tamamlanamaz.</div>`+miss.map(itemRow).join("")+
+  openModal(`<div class="resbox" style="background:var(--bad)"><b>✕ ${missCount(miss)} EKSİK</b>Eksikler okutulmadan yükleme tamamlanamaz.</div>`+miss.map(itemRow).join("")+
     `<button class="btn okb" id="back" style="margin-top:12px">Yüklemeye dön</button>`);
   $("back").onclick=closeModal;
 });

@@ -20,7 +20,7 @@ Veriler (checklist'ler ve okutma kayıtları) yalnızca cihazın tarayıcısınd
 ## Kurallar
 - Etiket kodu: `POZİSYON -TKxxxx-GG.AA.YY-C-1-PBLN`
 - Checklist'teki tüm kalemler zorunludur; istisnalar: galley fırınları (etiketsiz) ve ONTRAY sepetleri (dönüş trolleylerinin içinde).
-- CRG ile başlayan kargo pozisyonları uçuş/tarih açısından kontrol edilir.
+- Kargo pozisyonları checklist'in CAR bölümünden okunur. Dönüş fırın çantası (CANTA-FIRIN) adedi: dönüş bacağı Y/C sıcak yemek sayısı ÷ 32 (bir fırın inserti 8 sıra x 4), yukarı yuvarlanır.
 
 ## Geliştirme
 `index.html` tek dosyadır (pdf.js ve zxing-wasm gömülü). Kaynak `src/app.html`; derlemek için:
