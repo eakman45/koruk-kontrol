@@ -1,5 +1,5 @@
 // Çevrimdışı çalışma: uygulama dosyaları ilk açılışta önbelleğe alınır.
-const VERSION = "koruk-1.0.1";
+const VERSION = "koruk-1.0.2";
 const FILES = [
   "./", "index.html", "css/app.css", "manifest.webmanifest",
   "js/app.js", "js/config.js", "js/label.js", "js/parser.js", "js/rules.js", "js/scanner.js", "js/store.js", "js/audio.js",

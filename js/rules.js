@@ -52,6 +52,7 @@ export function evaluateScan(raw, list, session, { allowPosOnly = false } = {}) 
   if (label.posOnly) { label.flight = session.flight; label.date = session.date; }
   if (label.flight !== session.flight) return { kind: "bad", type: "WRONG_FLIGHT", label };
   if (label.date !== session.date) return { kind: "bad", type: "WRONG_DATE", label };
+  if (!label.pos) return { kind: "warn", type: "NO_POSITION", label };
   const prev = session.scans[label.pos] || session.extra[label.pos];
   if (prev) return { kind: "warn", type: "DUPLICATE", label, prev };
   const item = list.items.find((i) => i.code === label.pos);

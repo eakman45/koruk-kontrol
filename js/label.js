@@ -13,10 +13,13 @@ export function normFlight(f) {
  */
 export function parseLabel(raw, list) {
   const s = String(raw).trim().toUpperCase();
-  const m = s.match(/^\s*([A-Z0-9\/][A-Z0-9\/\-]*?)\s*-\s*(TK\s?\d{3,5})\s*-\s*(\d{2}\.\d{2}\.(?:\d{4}|\d{2}))(?!\d)\s*(?:-\s*([A-Z0-9]*))?\s*(?:-\s*([A-Z0-9]*))?\s*(?:-\s*([A-Z0-9]*))?/);
+  // Pozisyon bazı etiketlerde (ör. porsiyonlama/strafor) barkoda yazılmıyor: "-TK0537-2026.06.01-B-"
+  const m = s.match(/^\s*([A-Z0-9\/][A-Z0-9\/\-]*?)?\s*-\s*(TK\s?\d{3,5})\s*-\s*(\d{4}\.\d{2}\.\d{2}|\d{2}\.\d{2}\.(?:\d{4}|\d{2}))(?!\d)\s*(?:-\s*([A-Z0-9]*))?\s*(?:-\s*([A-Z0-9]*))?\s*(?:-\s*([A-Z0-9]*))?/);
   if (m) {
-    const d = m[3].length === 10 ? m[3].slice(0, 6) + m[3].slice(8) : m[3]; // 30.06.2026 -> 30.06.26
-    return { pos: m[1], flight: normFlight(m[2]), date: d, pbln: m[6] || "", raw: s };
+    let d = m[3];
+    if (/^\d{4}\./.test(d)) d = `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(2, 4)}`; // 2026.06.01 -> 01.06.26
+    else if (d.length === 10) d = d.slice(0, 6) + d.slice(8);                         // 30.06.2026 -> 30.06.26
+    return { pos: m[1] || "", flight: normFlight(m[2]), date: d, cls: m[4] || "", seals: m[5] || "", pbln: m[6] || "", raw: s };
   }
   // Sadece pozisyon kodu (elle giriş): aktif checklist'te varsa ya da kod biçimine uyuyorsa
   const inList = list && list.items.some((i) => i.code === s);

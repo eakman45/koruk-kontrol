@@ -22,7 +22,7 @@ Checklist'teki malzemelerin kamyona **eksiksiz ve doğru uçuşla** yüklendiği
 - Dönüş fırın çantası (CANTA-FIRIN) adedi = dönüş bacağı Y/C sıcak yemek ÷ 32, yukarı yuvarlanır.
 - YC sıcak havlu kargoya verilmez; checklist'te kargo bölümünde görünürse uyarı verilir.
 - Okutma başladıktan sonra yükleme iptal edilemez; aktif yükleme bitmeden yeni checklist başlatılamaz.
-- Etiket kodu: `POZİSYON -TKxxxx-GG.AA.YY-C-1-PBLN`
+- Etiket kodu: `POZİSYON -TKxxxx-GG.AA.YY-SINIF-MÜHÜR[-PBLN]` (SINIF: B = Business, C = Economy; MÜHÜR: mühür adedi — muhtemel). Porsiyonlama (strafor) etiketlerinde pozisyon barkoda yazılmaz ve tarih YYYY.AA.GG biçimindedir: uçuş/tarih kontrol edilir, kalem elle işaretlenir.
 
 ## Veri
 Tüm veriler yalnızca cihazın tarayıcısında tutulur, hiçbir sunucuya gönderilmez. Checklist'teki yolcu isimleri okunmaz ve saklanmaz.

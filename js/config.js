@@ -1,5 +1,5 @@
 // Uygulama sabitleri
-export const APP_VERSION = "1.0.1";
+export const APP_VERSION = "1.0.2";
 
 // Bir fırın inserti: 8 sıra x 4 = 32 sıcak yemek (tüm uçak tiplerinde aynı)
 export const OVEN_CAPACITY = 32;

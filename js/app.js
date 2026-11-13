@@ -53,6 +53,7 @@ const MSG = {
   WRONG_FLIGHT: (r) => ["Yanlış uçuş", `Etiket ${r.label.flight} · ${r.label.date} · poz. ${r.label.pos}`],
   WRONG_DATE: (r) => ["Yanlış tarih", `Etiket tarihi ${r.label.date} · poz. ${r.label.pos}`],
   DUPLICATE: (r) => ["Zaten okundu", `Poz. ${r.label.pos} · ${hm(r.prev.t)}`],
+  NO_POSITION: (r) => ["Pozisyon yok", "Uçuş ve tarih doğru, ama bu etiketin barkodunda pozisyon yazmıyor. Kalemi listeden elle işaretle."],
   NOT_IN_LIST: (r) => ["Listede yok", `Poz. ${r.label.pos} bu checklist'te yok`],
   UNREADABLE: (r) => ["Tanınmayan kod", `İçerik: ${String(r.raw).slice(0, 60)}`],
   NO_SESSION: () => ["Checklist yok", "Önce kamyonun checklist'ini yükle"],
