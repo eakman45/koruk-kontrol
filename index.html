@@ -197,15 +197,15 @@ function normFlight(f){const m=String(f).toUpperCase().match(/TK0*(\d+)/);return
 
 /* ---------------- checklist PDF parsing ---------------- */
 pdfjsLib.GlobalWorkerOptions.workerPort=new Worker(URL.createObjectURL(new Blob([$("pdfWorkerSrc").textContent],{type:"text/javascript"})));
-const SUM_CATS={"STANDARD UNIT (S/U)":"Unit","CUPBOARD":"Cupboard","FULL SIZE TROLLEY":"Full size","HALF SIZE TROLLEY":"Half size","OVEN":"Oven","PLASTIC BAG":"Poşet","BAG":"Çanta","ICE UNIT":"Buz unit","STRAFOR BOX":"Strafor"};
+const SUM_CATS={"STANDARD UNIT (S/U)":"Unit","CUPBOARD":"Cupboard","FULL SIZE TROLLEY":"Full size","HALF SIZE TROLLEY":"Half size","OVEN":"Oven","PLASTIC BAG":"Poşet","BAG":"Çanta","BAG-FIRIN":"Fırın çanta","ICE UNIT":"Buz unit","STRAFOR BOX":"Strafor"};
 function checkSummary(items,summary){
   const cats=Object.keys(summary).filter(k=>SUM_CATS[k]);
   if(!cats.length)return{ok:null,msg:"Checklist özet tablosu bulunamadı"};
   const diffs=[];let sum=0;
-  for(const c of cats){const n=items.filter(i=>i.tl===SUM_CATS[c]).length;sum+=n;if(n!==summary[c])diffs.push(`${c}: PDF ${summary[c]}, okunan ${n}`)}
+  for(const c of cats){const n=items.filter(i=>i.tl===SUM_CATS[c]).length;sum+=n;if(n!==summary[c])diffs.push(`${c} özette ${summary[c]}, satırlarda ${n}`)}
   for(const [c,tl] of Object.entries(SUM_CATS)){if(summary[c]==null){const n=items.filter(i=>i.tl===tl).length;if(n)diffs.push(`${c}: PDF özetinde yok, okunan ${n}`)}}
   if(summary["TOTAL COUNT"]!=null&&summary["TOTAL COUNT"]!==sum&&!diffs.length)diffs.push(`TOPLAM: PDF ${summary["TOTAL COUNT"]}, okunan ${sum}`);
-  return diffs.length?{ok:false,msg:"Özetle uyumsuz: "+diffs.join("; ")}:{ok:true,msg:`Checklist özetiyle birebir uyumlu (${sum} pozisyon)`};
+  return diffs.length?{ok:false,msg:"Checklist satırları ile alttaki özet tablo farklı: "+diffs.join("; ")}:{ok:true,msg:`Checklist özetiyle birebir uyumlu (${sum} pozisyon)`};
 }
 const GALLEY_FIX={BUL:"BULK",GLY:"GLYT",ONT:"ONTRAY"};
 function typeLabel(t){
@@ -219,6 +219,7 @@ function typeLabel(t){
   if(t.startsWith("STRAFOR"))return"Strafor";
   if(t.startsWith("ICE DRW"))return"Buz çek.";
   if(t.startsWith("TRAY INTO"))return"Tray";
+  if(t.startsWith("CANTA-FIRIN")||t.startsWith("CANTA FIRIN"))return"Fırın çanta";
   if(t.startsWith("CANTA"))return"Çanta";
   if(t.startsWith("POSET"))return"Poşet";
   if(t.startsWith("BULK"))return"Bulk";
@@ -478,10 +479,11 @@ $("pdfIn").addEventListener("change",async e=>{
       else setStatus("ok",`✓ ${l.flight} yüklendi`,`${l.date} · ${l.items.filter(isRequired).length} kalem`);
     }catch(err){setStatus("bad","Checklist okunamadı",`${f.name}: ${err.message||err}`,true);beep("bad")}
   }
-  if(lastLoaded&&!(lists[lastLoaded].check&&lists[lastLoaded].check.ok===false)){
+  if(lastLoaded){
+    const L2=lists[lastLoaded];
     if(sess&&sess.key===lastLoaded){/* aynı checklist tekrar yüklendi: devam */}
     else if(busy())blockMsg();
-    else startSession(lastLoaded);
+    else{startSession(lastLoaded);if(L2.check&&L2.check.ok===false){setStatus("warn",`${L2.flight} · checklist'i kontrol et`,L2.check.msg+". Liste checklist satırlarına göre oluşturuldu.",true);beep("warn")}}
   }
   save();render();
 });
