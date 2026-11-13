@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Körük Kontrol">
+<meta name="theme-color" content="#14171c">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Körük Yükleme Kontrol</title>
+<style>
+:root{--bg:#f2f3f5;--card:#fff;--ink:#14171c;--muted:#6b7280;--line:#e4e7eb;--ok:#0f9d58;--bad:#d93025;--warn:#f0a500;--idle:#2f3b4d;--accent:#c8102e}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+body{padding:env(safe-area-inset-top) env(safe-area-inset-right) calc(96px + env(safe-area-inset-bottom)) env(safe-area-inset-left)}
+.wrap{max-width:560px;margin:0 auto;padding:0 14px}
+header{display:flex;align-items:center;justify-content:space-between;padding:12px 2px 8px}
+header h1{font-size:17px;margin:0;font-weight:700;color:var(--idle)}
+.menuBtn{background:none;border:0;font-size:26px;line-height:1;padding:6px 8px;color:var(--ink);cursor:pointer}
+.status{border-radius:22px;padding:20px 20px 18px;color:#fff;background:var(--idle);min-height:210px;display:flex;flex-direction:column;transition:background .15s}
+.status.ok{background:var(--ok)}.status.bad{background:var(--bad)}.status.warn{background:var(--warn);color:#1d1600}
+.status .fl{font-size:14px;font-weight:700;opacity:.85;letter-spacing:.3px}
+.status .big{font-size:34px;font-weight:800;line-height:1.1;margin-top:10px}
+.status .small{font-size:16px;opacity:.95;margin-top:6px;word-break:break-word}
+.status .prog{margin-top:auto;padding-top:16px;display:flex;align-items:center;gap:12px}
+.status .prog b{font-size:22px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.status .prog .bar{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.3);overflow:hidden}
+.status.warn .prog .bar{background:rgba(0,0,0,.15)}
+.status .prog .bar i{display:block;height:100%;background:currentColor;width:0}
+.status.flash{animation:fl .45s 3}@keyframes fl{50%{filter:brightness(1.3)}}
+.btn{font:inherit;border:0;border-radius:16px;padding:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;text-align:center}
+.scan{background:var(--ink);color:#fff;font-size:20px;padding:22px;margin-top:12px}
+.sec{background:var(--card);color:var(--ink);border:1px solid var(--line);margin-top:10px}
+.okb{background:var(--ok);color:#fff}.danger{background:var(--bad);color:#fff}
+.listHead{display:flex;justify-content:space-between;align-items:baseline;margin:22px 4px 8px}
+.listHead b{font-size:17px}
+.link{background:none;border:0;color:var(--accent);font:inherit;font-weight:600;font-size:15px;cursor:pointer;padding:4px}
+.it{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--card);border-radius:14px;margin-bottom:6px}
+.it .pc{font-weight:800;min-width:70px}
+.it .ds{flex:1;font-size:14px;color:var(--muted);line-height:1.25}
+.it .mk{width:24px;height:24px;border-radius:50%;flex:0 0 24px;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff}
+.it.done .mk{background:var(--ok);border-color:var(--ok)}.it.manual .mk{background:var(--warn);border-color:var(--warn)}
+.it.done .pc,.it.manual .pc{color:var(--muted)}
+.it.na{opacity:.5}
+.gal{font-size:12px;font-weight:800;color:var(--muted);margin:14px 4px 6px;letter-spacing:.6px}
+.ret{color:var(--accent);font-weight:700}
+.empty{text-align:center;color:var(--muted);padding:18px 10px;font-size:15px}
+.foot{position:fixed;left:0;right:0;bottom:0;padding:10px 14px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(rgba(242,243,245,0),var(--bg) 30%)}
+.foot .btn{max-width:532px;margin:0 auto}
+.modal{position:fixed;inset:0;background:rgba(10,12,16,.5);display:none;align-items:flex-end;justify-content:center;z-index:20}
+.modal.on{display:flex}
+.sheet{background:var(--card);width:100%;max-width:560px;border-radius:22px 22px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom));max-height:90vh;overflow:auto}
+.sheet h2{margin:0 0 10px;font-size:20px}
+.mi{display:flex;align-items:center;gap:14px;padding:15px 6px;border-bottom:1px solid var(--line);font-size:17px;cursor:pointer;background:none;border-left:0;border-right:0;border-top:0;width:100%;text-align:left;color:var(--ink);font-family:inherit}
+.mi:last-child{border-bottom:0}.mi .ic{width:26px;text-align:center;font-size:20px}.mi span.sub{margin-left:auto;color:var(--muted);font-size:14px}
+.mi input{margin-left:auto;width:22px;height:22px}
+.row{display:flex;gap:8px;margin-top:12px}.row>*{flex:1}
+input[type=text]{font:inherit;width:100%;padding:14px;border-radius:14px;border:1px solid var(--line);background:#fafbfc}
+.muted{color:var(--muted);font-size:14px}
+.resbox{border-radius:16px;padding:18px;color:#fff;margin:6px 0 12px}
+.resbox b{font-size:26px;display:block}
+pre.rep{white-space:pre-wrap;font-size:12px;background:#f6f7f9;border-radius:12px;padding:10px;max-height:28vh;overflow:auto}
+.log div{padding:8px 10px;border-left:4px solid var(--line);margin-bottom:4px;font-size:14px;background:#fafbfc;border-radius:0 8px 8px 0}
+.log .ok{border-color:var(--ok)}.log .bad{border-color:var(--bad)}.log .warn{border-color:var(--warn)}
+.log time{color:var(--muted);margin-right:6px}
+video{width:100%;border-radius:14px;background:#000;max-height:50vh;object-fit:cover}
+.live{position:fixed;inset:0;background:#000;z-index:30;color:#fff}
+.live video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;max-height:none;border-radius:0}
+.live .lvTop{position:absolute;left:0;right:0;top:0;padding:calc(12px + env(safe-area-inset-top)) 16px 12px;display:flex;justify-content:space-between;align-items:flex-start;background:linear-gradient(rgba(0,0,0,.6),transparent)}
+.lvFl{font-size:14px;font-weight:700;opacity:.85}.lvCnt{font-size:30px;font-weight:800}
+.lvX{background:rgba(255,255,255,.2);border:0;color:#fff;font-size:22px;width:44px;height:44px;border-radius:50%}
+.lvFrame{position:absolute;left:50%;top:46%;width:62vmin;height:62vmin;transform:translate(-50%,-50%);border:4px solid rgba(255,255,255,.85);border-radius:22px;box-shadow:0 0 0 100vmax rgba(0,0,0,.35);transition:border-color .1s}
+.lvFrame.ok{border-color:var(--ok);border-width:8px}.lvFrame.warn{border-color:var(--warn);border-width:8px}.lvFrame.bad{border-color:var(--bad);border-width:8px}
+.lvMsg{position:absolute;left:16px;right:16px;top:calc(46% + 31vmin + 18px);text-align:center;font-size:22px;font-weight:800;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+.lvMsg small{display:block;font-size:15px;font-weight:600;opacity:.9}
+.lvBot{position:absolute;left:0;right:0;bottom:0;padding:12px 16px calc(18px + env(safe-area-inset-bottom));display:flex;gap:10px;justify-content:center}
+.lvB{background:rgba(255,255,255,.2);color:#fff;border:0;border-radius:14px;padding:14px 18px;font:inherit;font-weight:700}
+.lvB.on{background:#fff;color:#000}
+.lvAlarm{position:absolute;inset:0;background:var(--bad);display:flex;flex-direction:column;justify-content:center;padding:30px;text-align:center}
+.lvAlarm.warn{background:var(--warn);color:#1d1600}
+.lvAb{font-size:40px;font-weight:900;line-height:1.1}.lvAs{font-size:20px;margin-top:12px}
+.hide{display:none!important}
+.busy{opacity:.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Körük Kontrol</h1>
+    <button class="menuBtn" id="menuBtn" aria-label="Menü">☰</button>
+  </header>
+
+  <div class="status" id="status">
+    <div class="fl" id="sFlight">YÜKLEME YOK</div>
+    <div class="big" id="sBig">Etiket okut</div>
+    <div class="small" id="sSmall"></div>
+    <div class="prog hide" id="prog"><b id="pTxt">0 / 0</b><div class="bar"><i id="pBar"></i></div></div>
+  </div>
+
+  <button class="btn scan" id="photoBtn">📷 Etiket okut</button>
+  <input type="file" id="photoIn" accept="image/*" capture="environment" class="hide">
+  <label class="btn sec hide" id="pdfBtnMain" for="pdfIn">📄 Checklist yükle</label>
+  <input type="file" id="pdfIn" accept="application/pdf,.pdf" multiple class="hide">
+
+
+  <div id="listArea"></div>
+</div>
+
+<div class="foot"><button class="btn okb" id="finishBtn">Yüklemeyi bitir</button></div>
+<div id="live" class="live hide">
+  <video id="video" playsinline muted autoplay></video>
+  <div class="lvTop"><div><div class="lvFl" id="lvFl"></div><div class="lvCnt" id="lvCnt"></div></div><button class="lvX" id="liveStop">✕</button></div>
+  <div class="lvFrame" id="lvFrame"></div>
+  <div class="lvMsg" id="lvMsg">Kare kodu çerçeveye getir</div>
+  <div class="lvBot"><button class="lvB" id="torchBtn">🔦 Fener</button><button class="lvB" id="lvPhoto">📷 Foto</button></div>
+  <div class="lvAlarm hide" id="lvAlarm"><div class="lvAb" id="lvAbig"></div><div class="lvAs" id="lvAsmall"></div><button class="btn" id="lvGo" style="background:#fff;color:#000;margin-top:24px">Gördüm, devam</button></div>
+</div>
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+<script>/*PDFJS*/</script>
+<script type="text/plain" id="pdfWorkerSrc">/*PDFWORKER*/</script>
+<script>/*ZXING*/</script>
+<script>const ZXING_WASM_B64="/*WASMB64*/";</script>
+<script>
+"use strict";
+/* ---------------- storage ---------------- */
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let lists=LS.get("kk_lists",{});        // key "TK1665|30.06.26" -> {flight,date,items:[...],file}
+let sess=LS.get("kk_sess",null);        // {key,flight,date,scanned:{code:{t,m}},log:[],started}
+let settings=LS.get("kk_set",{ovenRequired:false});
+const save=()=>{LS.set("kk_lists",lists);LS.set("kk_sess",sess);LS.set("kk_set",settings)};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const now=()=>new Date().toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+
+/* ---------------- sound ---------------- */
+let actx=null;
+function unlockAudio(){try{if(!actx)actx=new (window.AudioContext||window.webkitAudioContext)();if(actx.state==="suspended")actx.resume()}catch(e){}}
+document.addEventListener("touchstart",unlockAudio,{passive:true});document.addEventListener("click",unlockAudio);
+function tone(freq,dur,start=0,type="square",vol=.25){if(!actx)return;const o=actx.createOscillator(),g=actx.createGain();o.type=type;o.frequency.value=freq;g.gain.value=vol;o.connect(g);g.connect(actx.destination);const t=actx.currentTime+start;o.start(t);o.stop(t+dur)}
+function beep(kind){try{if(kind==="ok")tone(1400,.09,0,"sine",.3);else if(kind==="warn"){tone(700,.15);tone(700,.15,.22)}else if(kind==="bad"){for(let i=0;i<4;i++){tone(420,.22,i*.3);tone(300,.12,i*.3+.22)}}}catch(e){}}
+
+/* ---------------- label parsing ---------------- */
+// DataMatrix content, e.g. "620F -TK0667-13.11.26-C-1-0"
+function parseLabel(raw){
+  const s=String(raw).trim().toUpperCase();
+  const m=s.match(/^\s*([A-Z0-9\/]+?)\s*-\s*(TK\d{3,5})\s*-\s*(\d{2}\.\d{2}\.\d{2})\s*(?:-\s*([A-Z0-9]*))?\s*(?:-\s*([A-Z0-9]*))?\s*(?:-\s*([A-Z0-9]*))?/);
+  if(m)return{pos:m[1],flight:normFlight(m[2]),date:m[3],x1:m[4]||"",x2:m[5]||"",pbln:m[6]||"",raw:s};
+  if(/^[A-Z\/]{0,6}\d{1,6}[A-Z]?$/.test(s))return{pos:s,flight:null,date:null,raw:s,manualPos:true};
+  return null;
+}
+function normFlight(f){const m=String(f).toUpperCase().match(/TK0*(\d+)/);return m?"TK"+m[1].padStart(4,"0"):f}
+
+/* ---------------- checklist PDF parsing ---------------- */
+pdfjsLib.GlobalWorkerOptions.workerPort=new Worker(URL.createObjectURL(new Blob([$("pdfWorkerSrc").textContent],{type:"text/javascript"})));
+const SUM_CATS={"STANDARD UNIT (S/U)":"Unit","CUPBOARD":"Cupboard","FULL SIZE TROLLEY":"Full size","HALF SIZE TROLLEY":"Half size","OVEN":"Oven","PLASTIC BAG":"Poşet","BAG":"Çanta","ICE UNIT":"Buz unit","STRAFOR BOX":"Strafor"};
+function checkSummary(items,summary){
+  const cats=Object.keys(summary).filter(k=>SUM_CATS[k]);
+  if(!cats.length)return{ok:null,msg:"Checklist özet tablosu bulunamadı"};
+  const diffs=[];let sum=0;
+  for(const c of cats){const n=items.filter(i=>i.tl===SUM_CATS[c]).length;sum+=n;if(n!==summary[c])diffs.push(`${c}: PDF ${summary[c]}, okunan ${n}`)}
+  for(const [c,tl] of Object.entries(SUM_CATS)){if(summary[c]==null){const n=items.filter(i=>i.tl===tl).length;if(n)diffs.push(`${c}: PDF özetinde yok, okunan ${n}`)}}
+  if(summary["TOTAL COUNT"]!=null&&summary["TOTAL COUNT"]!==sum&&!diffs.length)diffs.push(`TOPLAM: PDF ${summary["TOTAL COUNT"]}, okunan ${sum}`);
+  return diffs.length?{ok:false,msg:"Özetle uyumsuz: "+diffs.join("; ")}:{ok:true,msg:`Checklist özetiyle birebir uyumlu (${sum} pozisyon)`};
+}
+const GALLEY_FIX={BUL:"BULK",GLY:"GLYT",ONT:"ONTRAY"};
+function typeLabel(t){
+  t=t.toUpperCase();
+  if(t.startsWith("1/1 TRL"))return"Full size";
+  if(t.startsWith("1/2 TRL"))return"Half size";
+  if(t.startsWith("S/U"))return"Unit";
+  if(t.startsWith("OVEN"))return"Oven";
+  if(t.startsWith("CUPBOARD")||t.startsWith("DOLAP"))return"Cupboard";
+  if(t.startsWith("ICE UNIT"))return"Buz unit";
+  if(t.startsWith("STRAFOR"))return"Strafor";
+  if(t.startsWith("ICE DRW"))return"Buz çek.";
+  if(t.startsWith("TRAY INTO"))return"Tray";
+  if(t.startsWith("CANTA"))return"Çanta";
+  if(t.startsWith("POSET"))return"Poşet";
+  if(t.startsWith("BULK"))return"Bulk";
+  return t.split(" ")[0];
+}
+async function parseChecklistPdf(buf,fileName){
+  const doc=await pdfjsLib.getDocument({data:buf}).promise;
+  let flight=null,date=null;const items=new Map(),summary={};
+  for(let p=1;p<=doc.numPages;p++){
+    const tc=await (await doc.getPage(p)).getTextContent();
+    const its=tc.items.filter(i=>i.str&&i.str.trim()).map(i=>({s:i.str.trim(),x:i.transform[4],y:i.transform[5]}));
+    for(const i of its){const m=i.s.match(/Flight No:\s*(TK\s*\d+)\s*\/\s*Flight Date:\s*(\d{2})\.(\d{2})\.(\d{2,4})/i);if(m&&!flight){flight=normFlight(m[1].replace(/\s/g,""));date=`${m[2]}.${m[3]}.${m[4].slice(-2)}`}}
+    // summary table ("Description / Position Count / Seal Count")
+    for(const i of its){
+      if(!SUM_CATS[i.s]&&i.s!=="TOTAL COUNT")continue;
+      const nums=its.filter(j=>Math.abs(j.y-i.y)<2.5&&j.x>i.x&&/^\d+$/.test(j.s)).sort((a,b)=>a.x-b.x);
+      if(nums.length)summary[i.s]=Number(nums[0].s);
+    }
+    // position rows: "CODE-TYPE" strings
+    const rows=[];
+    for(const i of its){
+      const m=i.s.match(/^([A-Z\/]{0,6}\d{1,6}[A-Z]?|DONUS)-(S\/U|OVEN|CUPBOARD|1\/1 TRL|1\/2 TRL|ICE DRW|TRAY INTO|CANTA|POSET|BULK\d*|CRG|SEPET\d+|[A-Z][A-Z0-9\/ ]{1,30})(.*)$/);
+      if(!m)continue;
+      if(/^\d{2}\.\d{2}/.test(i.s))continue;
+      rows.push({i,code:m[1],type:(m[2]+m[3]).trim()});
+    }
+    if(!rows.length)continue;
+    // column x of position codes = most common x
+    const xs={};rows.forEach(r=>{const k=Math.round(r.i.x/4);xs[k]=(xs[k]||0)+1});
+    const colX=Number(Object.entries(xs).sort((a,b)=>b[1]-a[1])[0][0])*4;
+    const posRows=rows.filter(r=>Math.abs(r.i.x-colX)<8).sort((a,b)=>b.i.y-a.i.y);
+    const galleyMarks=its.filter(i=>i.x<colX-20&&/^([A-Z]{1,4}\d{1,2}|[A-Z]{2,4})$/.test(i.s)).sort((a,b)=>b.y-a.y);
+    let galley="";
+    for(let k=0;k<posRows.length;k++){
+      const r=posRows[k],y=r.i.y,lowY=k+1<posRows.length?Math.max(posRows[k+1].i.y+1.5,y-20):y-12;
+      const gm=galleyMarks.filter(g=>g.y>=y-1.5&&g.y<=y+4);
+      if(gm.length){const g=gm[0].s;galley=GALLEY_FIX[g]||g}
+      const near=its.filter(i=>i!==r.i&&i.y<=y+1.5&&i.y>=y-6);
+      const star=near.some(i=>i.s==="*"&&i.x<colX);
+      const isSeal=s=>/^TK[A-Z]?\d{5,}/.test(s);
+      const descIts=its.filter(i=>i!==r.i&&i.x>colX+30&&i.y<=y+1.5&&i.y>lowY&&!isSeal(i.s)&&!/^\d+$/.test(i.s)).sort((a,b)=>b.y-a.y||a.x-b.x);
+      const desc=descIts.map(i=>i.s).join(" ").replace(/\s+/g," ").trim();
+      const seal=near.filter(i=>isSeal(i.s)).map(i=>i.s).join(" ");
+      let code=r.code,type=r.type.replace(/\s+X$/,"");
+      if(/^SEPET\d+/.test(type)){code=code+"-"+type;type="SEPET"}
+      if(code==="DONUS"&&/^BULK/.test(type)){code="DONUS-"+type.split(" ")[0];type="BULK"}
+      const ret=/DONUS/i.test(desc+" "+type);
+      if(items.has(code)){const o=items.get(code);o.labels++;o.sealed=o.sealed||star;continue}
+      items.set(code,{code,type,tl:typeLabel(type),desc,galley,sealed:star,seal,ret,labels:1});
+    }
+  }
+  if(!flight)throw new Error("PDF'te 'Flight No / Flight Date' bulunamadı");
+  if(!items.size)throw new Error("PDF'te pozisyon satırı bulunamadı");
+  const arr=[...items.values()];
+  return{flight,date,key:flight+"|"+date,items:arr,file:fileName,loadedAt:Date.now(),check:checkSummary(arr,summary)};
+}
+
+/* ---------------- barcode reading ---------------- */
+let zxReady=null;
+function zx(){if(!zxReady){const bin=Uint8Array.from(atob(ZXING_WASM_B64),c=>c.charCodeAt(0));zxReady=ZXingWASM.prepareZXingModule({overrides:{wasmBinary:bin.buffer},fireImmediately:true})}return zxReady}
+const RD_OPTS={formats:["DataMatrix","QRCode","Code128"],tryHarder:true,maxNumberOfSymbols:4};
+async function decodeImageData(id){await zx();const r=await ZXingWASM.readBarcodes(id,RD_OPTS);return r.filter(x=>x.isValid&&x.text).map(x=>x.text)}
+async function fileToImageData(file,maxSide=2200){
+  let src;
+  try{src=await createImageBitmap(file)}catch(e){src=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=URL.createObjectURL(file)})}
+  const w=src.width,h=src.height,k=Math.min(1,maxSide/Math.max(w,h));
+  const c=document.createElement("canvas");c.width=Math.round(w*k);c.height=Math.round(h*k);
+  const g=c.getContext("2d",{willReadFrequently:true});g.drawImage(src,0,0,c.width,c.height);
+  return g.getImageData(0,0,c.width,c.height);
+}
+async function decodeFile(file){
+  for(const side of [2200,1400,3200]){
+    const t=await decodeImageData(await fileToImageData(file,side));
+    if(t.length)return t;
+  }
+  return[];
+}
+
+/* ---------------- core check logic ---------------- */
+function curList(){return sess&&sess.key?lists[sess.key]:null}
+// Checklist'teki her kalem zorunlu. İstisnalar: galley fırınları (etiketsiz) ve ONTRAY sepetleri (dönüş trolleylerinin içinde gider).
+function isOntray(it){return it.galley==="ONTRAY"||it.tl==="SEPET"}
+function isRequired(it){if(isOntray(it))return false;return it.tl!=="Oven"||settings.ovenRequired}
+function setStatus(kind,big,small,flash){
+  if(typeof onLiveResult==="function"&&liveOn&&kind)onLiveResult(kind,big,small||"");
+  const s=$("status");s.className="status "+(kind||"");
+  $("sBig").textContent=big;$("sSmall").textContent=small||"";
+  if(flash){void s.offsetWidth;s.classList.add("flash")}
+}
+function addLog(kind,msg){if(!sess)return;sess.log.unshift({t:now(),k:kind,m:msg});if(sess.log.length>500)sess.log.length=500}
+function startSession(flight,date){
+  const key=flight+"|"+date;
+  sess={key:lists[key]?key:null,flight,date,scanned:{},extra:{},log:[],started:Date.now()};
+  addLog("ok",`Yükleme başladı: ${flight} ${date}`+(lists[key]?"":" (checklist yok, sadece uçuş kontrolü)"));
+}
+function handleCode(raw,source){
+  try{window.scrollTo({top:0,behavior:"smooth"})}catch(e){}
+  const L=parseLabel(raw);
+  if(!L){setStatus("bad","OKUNAMADI","Kod formatı tanınmadı: "+raw,true);beep("bad");if(sess){addLog("bad","Tanınmayan kod: "+raw);save()}render();return}
+  if(L.manualPos){
+    if(!sess){setStatus("warn","Önce etiket okut","Pozisyon girmek için aktif yükleme olmalı",true);beep("warn");return}
+    L.flight=sess.flight;L.date=sess.date;
+  }
+  let isNew=false;
+  if(!sess){startSession(L.flight,L.date);isNew=true}
+  // flight / date check
+  if(L.flight!==sess.flight){
+    setStatus("bad","YANLIŞ UÇUŞ",`Etiket: ${L.flight} · ${L.date} · poz. ${L.pos}`,true);beep("bad");
+    addLog("bad",`YANLIŞ UÇUŞ: ${L.flight} ${L.date} poz. ${L.pos}`);save();render();return;
+  }
+  if(L.date!==sess.date){
+    setStatus("bad","YANLIŞ TARİH",`Etiket tarihi: ${L.date} · poz. ${L.pos}`,true);beep("bad");
+    addLog("bad",`YANLIŞ TARİH: ${L.date} poz. ${L.pos}`);save();render();return;
+  }
+  const list=curList();
+  const tag=source==="manual"?" (elle)":"";
+  if(sess.scanned[L.pos]||sess.extra[L.pos]){
+    setStatus("warn","ZATEN OKUNDU",`Poz. ${L.pos} · ${(sess.scanned[L.pos]||sess.extra[L.pos]).t}`,true);beep("warn");
+    addLog("warn",`Tekrar okutma: ${L.pos}`);save();render();return;
+  }
+  if(list){
+    const it=list.items.find(i=>i.code===L.pos);
+    if(!it&&/^CRG/.test(L.pos)){
+      sess.extra[L.pos]={t:now(),cargo:true};
+      setStatus("ok",`✓ ${L.pos}`,`Kargo · uçuş ve tarih doğru`);beep("ok");
+      addLog("ok",`${L.pos} kargo${tag}`);save();render();return;
+    }
+    if(!it){
+      sess.extra[L.pos]={t:now()};
+      setStatus("warn","LİSTEDE YOK",`Poz. ${L.pos} checklist'te yok`,true);beep("warn");
+      addLog("warn",`Listede olmayan pozisyon: ${L.pos}${tag}`);save();render();return;
+    }
+    sess.scanned[L.pos]={t:now(),m:source==="manual"};
+    const c=counts();
+    setStatus("ok",`✓ ${L.pos}`,(isNew?"Yeni yükleme başladı · ":"")+`${it.tl} · ${it.desc}${it.ret?" · DÖNÜŞ":""}`);beep("ok");
+    addLog("ok",`${L.pos} ${it.tl} ${it.desc}${tag}`);
+  }else{
+    sess.extra[L.pos]={t:now()};
+    setStatus("ok",`✓ ${L.pos}`,"Checklist yok · sadece uçuş ve tarih kontrol ediliyor");beep("ok");
+    addLog("ok",`${L.pos} (listesiz)${tag}`);
+  }
+  save();render();
+}
+function counts(){
+  const list=curList();if(!list)return{rd:0,rt:0,od:0,ot:0};
+  let rd=0,rt=0,od=0,ot=0;
+  for(const it of list.items){const d=!!sess.scanned[it.code];if(isRequired(it)){rt++;if(d)rd++}else{ot++;if(d)od++}}
+  return{rd,rt,od,ot};
+}
+function missing(){const l=curList();return l?l.items.filter(it=>isRequired(it)&&!sess.scanned[it.code]):[]}
+
+/* ---------------- rendering ---------------- */
+let showAll=false;
+function itemRow(it){
+  const s=sess&&sess.scanned[it.code],req=isRequired(it);
+  const note=isOntray(it)?" · trolley içinde":(it.tl==="Oven"&&!req?" · etiketsiz":"");
+  return `<div class="it ${s?(s.m?"manual":"done"):""} ${req?"":"na"}" data-code="${esc(it.code)}"><div class="mk">${s?(s.m?"E":"✓"):""}</div><div class="pc">${esc(it.code)}</div><div class="ds">${esc(it.tl)} · ${esc(it.desc)}${it.ret?' · <span class="ret">DÖNÜŞ</span>':""}${note}</div></div>`;
+}
+function render(){
+  $("sFlight").textContent=sess?`${sess.flight} · ${sess.date}`:"YÜKLEME YOK";
+  const list=curList(),c=counts();
+  $("prog").classList.toggle("hide",!list);
+  if(list){$("pTxt").textContent=`${c.rd} / ${c.rt}`;$("pBar").style.width=(c.rt?100*c.rd/c.rt:0)+"%"}
+  $("pdfBtnMain").classList.toggle("hide",Object.keys(lists).length>0);
+  let h="";
+  if(!sess){
+    h=Object.keys(lists).length?`<div class="empty">İlk etiketi okut, yükleme başlasın.</div>`:`<div class="empty">Önce uçuşun checklist PDF'ini yükle.</div>`;
+  }else if(!list){
+    h=`<div class="empty">Bu uçuşun checklist'i yüklü değil.<br>Yanlış uçuş kontrolü çalışıyor, eksik kontrolü için menüden checklist yükle.</div>`;
+  }else{
+    const miss=missing();
+    h=`<div class="listHead"><b>${showAll?"Tüm liste":(miss.length?`Eksikler · ${miss.length}`:"Eksik yok ✓")}</b><button class="link" id="toggleAll">${showAll?"Sadece eksikler":"Tümünü göster"}</button></div>`;
+    if(showAll){
+      const groups={};list.items.forEach(it=>{(groups[it.galley||"—"]??=[]).push(it)});
+      for(const [g,arr] of Object.entries(groups))h+=`<div class="gal">${esc(g)}</div>`+arr.map(itemRow).join("");
+    }else h+=miss.map(itemRow).join("");
+    const ex=Object.keys(sess.extra);
+    if(ex.length)h+=`<div class="gal">LİSTE DIŞI OKUTULANLAR</div>`+ex.map(k=>`<div class="it ${sess.extra[k].cargo?"done":""}"><div class="mk" ${sess.extra[k].cargo?"":'style="background:var(--warn);border-color:var(--warn)"'}>${sess.extra[k].cargo?"✓":"?"}</div><div class="pc">${esc(k)}</div><div class="ds">${sess.extra[k].cargo?"Kargo":"Checklist'te yok"} · ${esc(sess.extra[k].t)}</div></div>`).join("");
+  }
+  $("listArea").innerHTML=h;
+}
+
+/* ---------------- modal helpers ---------------- */
+function openModal(html){$("sheet").innerHTML=html;$("modal").classList.add("on")}
+function closeModal(){$("modal").classList.remove("on")}
+$("modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal()});
+function confirmBox(msg,okText,onOk,danger){
+  openModal(`<p style="font-size:17px;margin:4px 0 0">${esc(msg)}</p><div class="row"><button class="btn sec" id="mNo">Vazgeç</button><button class="btn ${danger?"danger":"okb"}" id="mYes">${esc(okText)}</button></div>`);
+  $("mNo").onclick=closeModal;$("mYes").onclick=()=>{closeModal();onOk()};
+}
+
+/* ---------------- menu ---------------- */
+$("menuBtn").addEventListener("click",openMenu);
+function openMenu(){
+  const n=Object.keys(lists).length;
+  openModal(`<h2>Menü</h2>
+  <label class="mi" for="pdfIn"><span class="ic">📄</span>Checklist yükle</label>
+  <button class="mi" id="mLists"><span class="ic">🗂</span>Yüklü checklistler<span class="sub">${n}</span></button>
+  <button class="mi" id="mManual"><span class="ic">⌨️</span>Elle kod gir</button>
+  <label class="mi" for="photoIn"><span class="ic">🖼</span>Fotoğrafla okut</label>
+  <button class="mi" id="mLog"><span class="ic">📋</span>Kayıt</button>
+  <label class="mi"><span class="ic">🔥</span>Fırınları da say<input type="checkbox" id="mOven" ${settings.ovenRequired?"checked":""}></label>
+  <button class="mi" id="mNew" style="color:var(--bad)"><span class="ic">↺</span>Yeni yükleme</button>`);
+  $("pdfIn").addEventListener("click",closeModal,{once:true});
+  $("mLists").onclick=openLists;
+  $("mManual").onclick=openManual;
+  $("mLog").onclick=()=>openModal(`<h2>Kayıt</h2><div class="log">${sess&&sess.log.length?sess.log.map(l=>`<div class="${l.k}"><time>${l.t}</time>${esc(l.m)}</div>`).join(""):'<div class="muted">Kayıt yok.</div>'}</div><button class="btn sec" id="mClose">Kapat</button>`)||($("mClose").onclick=closeModal);
+  $("mOven").onchange=e=>{settings.ovenRequired=e.target.checked;save();render()};
+  $("mNew").onclick=()=>{if(!sess){closeModal();return}confirmBox("Mevcut yükleme kapatılıp yenisine geçilsin mi?","Yeni yükleme",()=>{sess=null;save();setStatus("","Etiket okut","");render()},true)};
+}
+function openLists(){
+  const keys=Object.keys(lists).sort((a,b)=>lists[b].loadedAt-lists[a].loadedAt);
+  openModal(`<h2>Yüklü checklistler</h2>`+(keys.length?keys.map(k=>{const l=lists[k];return`<div class="mi" style="cursor:default"><span class="ic">${l.check&&l.check.ok===false?"⚠️":"📄"}</span><div><b>${esc(l.flight)}</b> · ${esc(l.date)}<div class="muted">${l.items.filter(isRequired).length} kalem</div></div><span class="sub"><button class="link" data-start="${esc(k)}">Başlat</button><button class="link" data-del="${esc(k)}" style="color:var(--muted)">Sil</button></span></div>`}).join(""):`<div class="empty">Henüz checklist yok.</div>`)+`<label class="btn sec" for="pdfIn">📄 Checklist yükle</label>`);
+  $("sheet").onclick=e=>{
+    const s=e.target.closest("[data-start]"),d=e.target.closest("[data-del]");
+    if(s){$("sheet").onclick=null;const l=lists[s.dataset.start];closeModal();startSession(l.flight,l.date);setStatus("","Etiket okut","Yükleme başladı");save();render()}
+    if(d){delete lists[d.dataset.del];if(sess&&sess.key===d.dataset.del)sess.key=null;save();render();openLists()}
+  };
+}
+function openManual(){
+  openModal(`<h2>Elle kod gir</h2><p class="muted">Etiketteki pozisyon kodu (örn. 520) ya da tam kod.</p><form id="manForm" autocomplete="off"><input type="text" id="manIn" autocapitalize="characters" spellcheck="false" placeholder="520"><div class="row"><button type="button" class="btn sec" id="mNo">Kapat</button><button class="btn okb">Gir</button></div></form>`);
+  $("mNo").onclick=closeModal;$("manIn").focus();
+  $("manForm").onsubmit=e=>{e.preventDefault();const v=$("manIn").value.trim();$("manIn").value="";if(v){closeModal();handleCode(v,/TK\d/i.test(v)?"scanner":"manual")}};
+}
+
+/* ---------------- events ---------------- */
+$("photoIn").addEventListener("change",async e=>{
+  const f=e.target.files[0];e.target.value="";if(!f)return;
+  closeModal();setStatus("","Okunuyor…","");
+  try{
+    const codes=await decodeFile(f);
+    if(!codes.length){setStatus("warn","Kod bulunamadı","Kare koda yaklaşıp tekrar çek",true);beep("warn")}
+    else codes.forEach(c=>handleCode(c,"photo"));
+  }catch(err){setStatus("bad","Hata",String(err.message||err),true)}
+
+});
+
+// Bluetooth / USB okuyucu: klavye gibi yazar ve Enter'a basar
+let kbuf="",kt=0;
+document.addEventListener("keydown",e=>{
+  if(e.target&&e.target.tagName==="INPUT")return;
+  const t=Date.now();if(t-kt>120)kbuf="";kt=t;
+  if(e.key==="Enter"){if(kbuf.length>=3)handleCode(kbuf,"scanner");kbuf="";return}
+  if(e.key.length===1){if(e.key===" "&&kbuf)e.preventDefault();kbuf+=e.key}
+});
+
+$("pdfIn").addEventListener("change",async e=>{
+  const files=[...e.target.files];e.target.value="";closeModal();
+  for(const f of files){
+    setStatus("","Checklist okunuyor…",f.name);
+    try{
+      const l=await parseChecklistPdf(new Uint8Array(await f.arrayBuffer()),f.name);
+      lists[l.key]=l;
+      if(sess&&!sess.key&&sess.flight===l.flight&&sess.date===l.date){sess.key=l.key;for(const c of Object.keys(sess.extra)){if(l.items.some(i=>i.code===c)){sess.scanned[c]=sess.extra[c];delete sess.extra[c]}}}
+      if(l.check&&l.check.ok===false){setStatus("warn",`${l.flight} yüklendi — kontrol et`,l.check.msg,true);beep("warn")}
+      else setStatus("ok",`✓ ${l.flight} yüklendi`,`${l.date} · ${l.items.filter(isRequired).length} kalem`);
+    }catch(err){setStatus("bad","Checklist okunamadı",`${f.name}: ${err.message||err}`,true);beep("bad")}
+  }
+  save();render();
+});
+
+$("listArea").addEventListener("click",e=>{
+  if(e.target.id==="toggleAll"){showAll=!showAll;render();return}
+  const r=e.target.closest(".it[data-code]");if(!r||!sess)return;
+  const code=r.dataset.code,s=sess.scanned[code];
+  if(s)confirmBox(`${code} okundu olarak işaretli (${s.t}). İşaret kaldırılsın mı?`,"Kaldır",()=>{delete sess.scanned[code];addLog("warn",`İşaret kaldırıldı: ${code}`);save();render()},true);
+  else confirmBox(`${code} etiketi okunmuyor mu? Elle onaylanırsa kayıtta "elle" olarak görünür.`,"Elle onayla",()=>handleCode(code,"manual"));
+});
+
+function reportText(miss,forced,reason){
+  const c=counts(),l=curList();
+  let t=`KÖRÜK YÜKLEME KONTROL\n${sess.flight} ${sess.date}\nBitiş: ${new Date().toLocaleString("tr-TR")}\n`;
+  if(l)t+=`Okunan: ${c.rd}/${c.rt}\n`;
+  if(miss.length)t+=`EKSİK (${miss.length}): `+miss.map(m=>`${m.code} ${m.tl}`).join(", ")+"\n";
+  const ex=Object.keys(sess.extra);if(ex.length)t+=`Liste dışı: ${ex.join(", ")}\n`;
+  const bad=sess.log.filter(x=>x.k==="bad");if(bad.length)t+=`Alarmlar (${bad.length}):\n`+bad.map(b=>`  ${b.t} ${b.m}`).reverse().join("\n")+"\n";
+  const man=Object.entries(sess.scanned).filter(([k,v])=>v.m).map(([k])=>k);if(man.length)t+=`Elle onaylanan: ${man.join(", ")}\n`;
+  if(forced)t+=`EKSİKLE KAPATILDI. Sebep: ${reason||"-"}\n`;
+  return t;
+}
+function finishSheet(kind,title,sub,rep){
+  openModal(`<div class="resbox" style="background:var(--${kind})"><b>${title}</b>${sub}</div><pre class="rep" id="rep">${esc(rep)}</pre><div class="row"><button class="btn sec" id="cp">Raporu kopyala</button><button class="btn okb" id="done">Yeni yükleme</button></div>`);
+  $("cp").onclick=async()=>{try{await navigator.clipboard.writeText($("rep").textContent);$("cp").textContent="Kopyalandı ✓"}catch(e){const r=document.createRange();r.selectNodeContents($("rep"));const s=getSelection();s.removeAllRanges();s.addRange(r);$("cp").textContent="Seçildi"}};
+  $("done").onclick=()=>{sess=null;save();closeModal();setStatus("","Etiket okut","");render()};
+}
+$("finishBtn").addEventListener("click",()=>{
+  if(!sess){setStatus("warn","Aktif yükleme yok","Önce etiket okut");return}
+  const miss=missing(),l=curList();
+  if(!l){finishSheet("warn","Eksik kontrolü yapılamadı","<br>Bu uçuşun checklist'i yüklü değil.",reportText([],false));return}
+  if(!miss.length){beep("ok");addLog("ok","Yükleme TAMAM");finishSheet("ok","✓ YÜKLEME TAMAM","Tüm kalemler okundu.",reportText([],false));return}
+  beep("bad");
+  openModal(`<div class="resbox" style="background:var(--bad)"><b>✕ ${miss.length} EKSİK</b>Kamyonu kapatmadan tamamla.</div>`+miss.map(itemRow).join("")+
+    `<button class="btn okb" id="back" style="margin-top:12px">Yüklemeye dön</button><details style="margin-top:10px"><summary class="muted">Eksikle kapat (supervisor)</summary><input type="text" id="reason" placeholder="Sebep" style="margin:10px 0"><button class="btn danger" id="force">Eksikle kapat</button></details>`);
+  $("back").onclick=closeModal;
+  $("force").onclick=()=>{const r=$("reason").value.trim();if(!r){$("reason").focus();return}addLog("bad","EKSİKLE KAPATILDI: "+r);finishSheet("bad","Eksikle kapatıldı","",reportText(miss,true,r))};
+});
+
+/* ---------------- live camera ---------------- */
+const canLive=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)&&window.isSecureContext;
+let stream=null,liveOn=false,paused=false,lastCode="",lastAt=0,torch=false,lastResult=null;
+$("photoBtn").addEventListener("click",()=>{unlockAudio();if(canLive&&LS.get("kk_nolive",false)!==true)startLive();else $("photoIn").click()});
+$("lvPhoto").addEventListener("click",()=>{stopLive();$("photoIn").click()});
+async function startLive(){
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080},focusMode:"continuous"},audio:false})}
+  catch(e){$("photoIn").click();return}
+  const v=$("video");v.srcObject=stream;$("live").classList.remove("hide");
+  try{await v.play()}catch(e){}
+  const tr=stream.getVideoTracks()[0];let caps={};try{caps=tr.getCapabilities?tr.getCapabilities():{}}catch(e){}
+  $("torchBtn").classList.toggle("hide",!caps.torch);torch=false;$("torchBtn").classList.remove("on");
+  liveOn=true;paused=false;liveInfo();lvMsg("Kare kodu çerçeveye getir","");loop();
+}
+$("liveStop").addEventListener("click",stopLive);
+function stopLive(){liveOn=false;if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;$("live").classList.add("hide");$("lvAlarm").classList.add("hide")}
+$("torchBtn").addEventListener("click",async()=>{try{torch=!torch;await stream.getVideoTracks()[0].applyConstraints({advanced:[{torch}]});$("torchBtn").classList.toggle("on",torch)}catch(e){}});
+$("lvGo").addEventListener("click",()=>{$("lvAlarm").classList.add("hide");paused=false;lastAt=Date.now();lvMsg("Kare kodu çerçeveye getir","")});
+function liveInfo(){
+  $("lvFl").textContent=sess?`${sess.flight} · ${sess.date}`:"Yükleme yok";
+  const l=curList(),c=counts();$("lvCnt").textContent=l?`${c.rd} / ${c.rt}`:(sess?Object.keys(sess.extra).length+" okundu":"");
+}
+function lvMsg(big,small){$("lvMsg").innerHTML=esc(big)+(small?`<small>${esc(small)}</small>`:"")}
+let flashT=0;
+function onLiveResult(kind,big,small){
+  if(!liveOn)return;
+  liveInfo();
+  const f=$("lvFrame");f.className="lvFrame "+kind;clearTimeout(flashT);flashT=setTimeout(()=>f.className="lvFrame",700);
+  lvMsg(big,small);
+  if(kind==="bad"){paused=true;const a=$("lvAlarm");a.className="lvAlarm";$("lvAbig").textContent=big;$("lvAsmall").textContent=small;}
+}
+async function loop(){
+  const v=$("video"),c=document.createElement("canvas"),g=c.getContext("2d",{willReadFrequently:true});
+  while(liveOn){
+    if(!paused&&v.videoWidth){
+      // sadece çerçevenin olduğu orta bölgeyi tara (daha hızlı)
+      const vw=v.videoWidth,vh=v.videoHeight,side=Math.min(vw,vh)*0.8,sx=(vw-side)/2,sy=Math.max(0,vh*0.46-side/2);
+      const out=Math.min(900,side);c.width=c.height=out|0;g.drawImage(v,sx,sy,side,side,0,0,c.width,c.height);
+      try{for(const code of await decodeImageData(g.getImageData(0,0,c.width,c.height))){const t=Date.now();if(code===lastCode&&t-lastAt<5000){lastAt=t;continue}lastCode=code;lastAt=t;handleCode(code,"live")}}catch(e){}
+    }
+    await new Promise(r=>setTimeout(r,90));
+  }
+}
+
+/* ---------------- init ---------------- */
+render();
+if(sess)setStatus("","Devam et","Kaldığın yerden etiket okut");
+zx().catch(()=>{});
+</script>
+</body>
+</html>
