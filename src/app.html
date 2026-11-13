@@ -166,7 +166,7 @@ function checkSummary(items,summary,oven){
   if(summary["TOTAL COUNT"]!=null&&summary["TOTAL COUNT"]!==sum&&!diffs.length)diffs.push(`TOPLAM: PDF ${summary["TOTAL COUNT"]}, okunan ${sum}`);
   return diffs.length?{ok:false,msg:"Checklist satırları ile alttaki özet tablo farklı: "+diffs.join("; ")}:{ok:true,msg:`Checklist özetiyle birebir uyumlu (${sum} pozisyon)`};
 }
-const GALLEY_FIX={BUL:"BULK",GLY:"GLYT",ONT:"ONTRAY"};
+const GALLEY_FIX={BUL:"BULK",GLY:"GLYT",ONT:"ONTRAY",CAR:"CARGO"};
 function typeLabel(t){
   t=t.toUpperCase();
   if(t.startsWith("1/1 TRL"))return"Full size";
@@ -346,7 +346,7 @@ function missing(){
   const l=curList();if(!l)return[];
   const m=l.items.filter(it=>isRequired(it)&&!sess.scanned[it.code]);
   const q=ovenQuota(l);
-  if(q){const h=ovenHave(l);if(h<q.need)m.unshift({code:"FIRIN",tl:"Fırın çanta",desc:`${h} / ${q.need} okundu · dönüş Y/C ${q.pax} yemek ÷ ${OVEN_CAP}`,galley:"CAR",ret:true,virtual:true,missN:q.need-h})}
+  if(q){const h=ovenHave(l);if(h<q.need)m.unshift({code:"FIRIN",tl:"Fırın çanta",desc:`${h} / ${q.need} okundu · dönüş Y/C ${q.pax} yemek ÷ ${OVEN_CAP}`,galley:"CARGO",ret:true,virtual:true,missN:q.need-h})}
   return m;
 }
 
