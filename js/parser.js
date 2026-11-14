@@ -39,7 +39,7 @@ export function typeOf(raw) {
   return "other";
 }
 
-const POS_RE = /^([A-Z\/]{0,6}\d{1,6}[A-Z]?|DONUS)-(S\/U|OVEN|CUPBOARD|1\/1 TRL|1\/2 TRL|ICE DRW|TRAY INTO|CANTA|POSET|BULK\d*|CRG|SEPET\d+|[A-Z][A-Z0-9\/ ]{1,30})(.*)$/;
+const POS_RE = /^((?=[A-Z0-9\/]*\d)[A-Z0-9\/]{1,10}|DONUS)-(S\/U|OVEN|CUPBOARD|1\/1 TRL|1\/2 TRL|ICE DRW|TRAY INTO|CANTA|POSET|BULK\d*|CRG|SEPET\d+|[A-Z][A-Z0-9\/ ]{1,30})(.*)$/;
 const SEAL_RE = /^TK[A-Z]?\d{5,}/;
 
 /**
@@ -122,7 +122,7 @@ export async function parseChecklist(pdfjs, data) {
     rows.forEach((r) => { const k = Math.round(r.i.x / 4); xs[k] = (xs[k] || 0) + 1; });
     const colX = Number(Object.entries(xs).sort((a, b) => b[1] - a[1])[0][0]) * 4;
     const posRows = rows.filter((r) => Math.abs(r.i.x - colX) < 8).sort((a, b) => b.i.y - a.i.y);
-    const galleyMarks = its.filter((i) => i.x < colX - 20 && /^([A-Z]{1,4}\d{1,2}|[A-Z]{2,4})$/.test(i.s)).sort((a, b) => b.y - a.y);
+    const galleyMarks = its.filter((i) => i.x < colX - 20 && /^[A-Z][A-Z0-9]{0,5}$/.test(i.s)).sort((a, b) => b.y - a.y);
 
     let galley = "";
     for (let k = 0; k < posRows.length; k++) {
@@ -185,8 +185,9 @@ export function checkSummary(items, summary, oven) {
       if (summary[c] !== oven.need) diffs.push({ cat: c, pdf: summary[c], found: oven.need, calc: true });
       continue;
     }
-    const n = items.filter((i) => i.type === t).length;
-    if (n !== summary[c]) diffs.push({ cat: c, pdf: summary[c], found: n });
+    const rows = items.filter((i) => i.type === t);
+    // Özet tablo bazı kategorilerde sadece mühürlü (*) satırları sayıyor (ör. TK0726: 5 çanta satırı, 2'si mühürlü, özet 2)
+    if (rows.length !== summary[c] && rows.filter((i) => i.sealed).length !== summary[c]) diffs.push({ cat: c, pdf: summary[c], found: rows.length });
   }
   for (const [c, t] of Object.entries(SUMMARY_TYPES)) {
     if (summary[c] == null) { const n = items.filter((i) => i.type === t).length; if (n) diffs.push({ cat: c, pdf: 0, found: n }); }

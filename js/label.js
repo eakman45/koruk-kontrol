@@ -23,7 +23,7 @@ export function parseLabel(raw, list) {
   }
   // Sadece pozisyon kodu (elle giriş): aktif checklist'te varsa ya da kod biçimine uyuyorsa
   const inList = list && list.items.some((i) => i.code === s);
-  if (inList || /^[A-Z\/]{0,6}\d{1,6}[A-Z]?$/.test(s) || /^[A-Z]+-[A-Z]+\d*$/.test(s)) {
+  if (inList || /^(?=[A-Z0-9\/]*\d)[A-Z0-9\/]{2,10}$/.test(s) || /^[A-Z]+-[A-Z]+\d*$/.test(s)) {
     return { pos: s, flight: null, date: null, raw: s, posOnly: true };
   }
   return null;
