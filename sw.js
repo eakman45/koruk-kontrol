@@ -1,5 +1,5 @@
 // Çevrimdışı çalışma: uygulama dosyaları ilk açılışta önbelleğe alınır.
-const VERSION = "koruk-1.0.3";
+const VERSION = "koruk-1.0.4";
 const FILES = [
   "./", "index.html", "css/app.css", "manifest.webmanifest",
   "js/app.js", "js/config.js", "js/label.js", "js/parser.js", "js/rules.js", "js/scanner.js", "js/store.js", "js/audio.js",
@@ -16,7 +16,8 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET" || new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request).then((r) => {
+    // no-cache: tarayıcının HTTP önbelleğini atla, her açılışta sunucudaki güncel sürümü al
+    fetch(e.request, { cache: "no-cache" }).then((r) => {
       if (r.ok) { const copy = r.clone(); caches.open(VERSION).then((c) => c.put(e.request, copy)); }
       return r;
     }).catch(() => caches.match(e.request, { ignoreSearch: true }).then((r) => r || caches.match("index.html")))

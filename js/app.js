@@ -380,7 +380,13 @@ go(S.session ? "load" : "home");
 if (S.session) { const p = progress(list(), S.session, S.settings); feedback("idle", "Kaldığın yerden devam et", `${p.done}/${p.total} okundu`); }
 
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
-  navigator.serviceWorker.register("sw.js").catch(() => {});
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
+    reg.update().catch(() => {});
+    // Yeni sürüm devreye girince sayfayı bir kez yenile
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
+  }).catch(() => {});
 }
 
 // test/teşhis için
