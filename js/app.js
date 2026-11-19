@@ -119,12 +119,19 @@ $("pdfIn").addEventListener("change", async (e) => {
   if (ses && ses.key === L.key) { S.checklists[L.key] = Object.assign(L, { notices: L.notices }); store.save(); toast("Aynı checklist, kontrol devam ediyor"); render(); return; }
   if (ses && Object.keys(ses.scans).length) {
     const l = list(), n = missingCount(missing(l, ses, S.settings));
+    if (S.settings.allowIncomplete) {
+      confirmSheet({ title: `${ses.flight} bitmedi`, text: `${n} eksik var. ${ses.flight} eksik olarak kapatılıp ${L.flight} başlatılsın mı?`, ok: `${L.flight}'e geç`, danger: true, onOk: () => closeIncomplete(() => start(L)) });
+      beep("warn", S.settings.sound); return;
+    }
     sheet(`<div class="result bad">${I.alert}<div><b>${esc(ses.flight)} bitmedi</b>${n} eksik var</div></div><p>Aktif yükleme tamamlanmadan yeni checklist başlatılamaz.</p><button class="btn primary" id="sClose">Yüklemeye dön</button>`);
     $("sClose").onclick = closeSheet; beep("bad", S.settings.sound); return;
   }
   const done = S.history.find((h) => h.key === L.key);
   if (done) {
-    confirmSheet({ title: `${L.flight} zaten tamamlandı`, text: `${L.date} uçuşu ${done.finishedAt ? dt(done.finishedAt) : done.finishedLabel} tarihinde tamamlandı. Yine de yeni kontrol başlatılsın mı?`, ok: "Başlat", onOk: () => start(L) });
+    const when = done.finishedAt ? dt(done.finishedAt) : done.finishedLabel;
+    confirmSheet(done.incomplete
+      ? { title: `${L.flight} daha önce eksik kapatıldı`, text: `${L.date} uçuşu ${when} tarihinde ${done.incomplete} eksikle kapatıldı. Yeni kontrol başlatılsın mı?`, ok: "Başlat", onOk: () => start(L) }
+      : { title: `${L.flight} zaten tamamlandı`, text: `${L.date} uçuşu ${when} tarihinde tamamlandı. Yine de yeni kontrol başlatılsın mı?`, ok: "Başlat", onOk: () => start(L) });
     beep("warn", S.settings.sound); return;
   }
   start(L);
@@ -146,13 +153,14 @@ function start(L) {
 function reportText(L, ses, done, finishedAt) {
   const p = progress(L, ses, S.settings);
   const ev = ses.events;
-  const alarms = ev.filter((e) => e.kind === "bad");
+  const alarms = ev.filter((e) => e.kind === "bad" && e.type !== "CLOSED_INCOMPLETE");
   const manual = Object.entries(ses.scans).filter(([, v]) => v.src === "manual").map(([k]) => k);
   const extra = Object.keys(ses.extra);
   let t = `KÖRÜK YÜKLEME KONTROLÜ\n${ses.flight} · ${ses.date}${L.info.route ? " · " + L.info.route : ""}\n`;
   if (L.info.aircraft) t += `Uçak: ${L.info.aircraft}${L.info.reg ? " " + L.info.reg : ""}${L.info.park ? " · Park " + L.info.park : ""}\n`;
   t += `Başlangıç: ${dt(ses.startedAt)}  Bitiş: ${dt(finishedAt)}\n`;
   t += `Sonuç: ${done ? "TAMAMLANDI" : "EKSİK"} · ${p.done}/${p.total}\n`;
+  if (!done) { const m = missing(L, ses, S.settings); t += `EKSİK (${missingCount(m)}): ${m.map((x) => (x.virtual ? `${x.count} fırın çanta` : `${x.code} ${typeName(x.type)}`)).join(", ")}\n`; }
   if (L.oven) t += `Fırın çanta: ${Math.min(ovenHave(L, ses), L.oven.need)}/${L.oven.need} (dönüş Y/C ${L.oven.pax} yemek ÷ 32)\n`;
   if (manual.length) t += `Elle onaylanan: ${manual.join(", ")}\n`;
   if (extra.length) t += `Liste dışı okutulan: ${extra.join(", ")}\n`;
@@ -161,14 +169,32 @@ function reportText(L, ses, done, finishedAt) {
   return t;
 }
 
+// Eksikle kapatma (ayardan açılır): yükleme "EKSİK" olarak geçmişe düşer
+function closeIncomplete(after) {
+  const L = list(), ses = S.session;
+  const finishedAt = new Date().toISOString();
+  const p = progress(L, ses, S.settings), m = missing(L, ses, S.settings);
+  ses.events.push({ t: finishedAt, kind: "bad", type: "CLOSED_INCOMPLETE" });
+  S.history.unshift({ id: ses.id, key: ses.key, flight: ses.flight, date: ses.date, route: L.info.route, startedAt: ses.startedAt, finishedAt, done: p.done, total: p.total,
+    alarms: ses.events.filter((e) => e.kind === "bad" && e.type !== "CLOSED_INCOMPLETE").length, incomplete: missingCount(m),
+    manual: Object.values(ses.scans).filter((v) => v.src === "manual").length, report: reportText(L, ses, false, finishedAt) });
+  S.session = null; S.checklists = {};
+  store.save(); closeSheet();
+  toast(`${ses.flight} eksik olarak kapatıldı`);
+  if (after) after(); else go("home");
+}
+
 $("finishBtn").addEventListener("click", () => {
   const L = list(), ses = S.session;
   if (!L) return;
   const m = missing(L, ses, S.settings);
   if (m.length) {
     beep("bad", S.settings.sound);
-    sheet(`<div class="result bad">${I.x}<div><b>${missingCount(m)} eksik</b>Eksikler okutulmadan yükleme tamamlanamaz</div></div>${groupedRows(m)}<div class="actions"><button class="btn primary" id="sBack">Yüklemeye dön</button></div>`);
-    $("sBack").onclick = closeSheet; return;
+    const inc = S.settings.allowIncomplete;
+    sheet(`<div class="result bad">${I.x}<div><b>${missingCount(m)} eksik</b>${inc ? "Eksikleri okut ya da yüklemeyi eksik olarak kapat" : "Eksikler okutulmadan yükleme tamamlanamaz"}</div></div><div class="actions" style="margin:0 0 6px"><button class="btn primary" id="sBack">Yüklemeye dön</button>${inc ? `<button class="btn ghost" id="sInc" style="color:var(--bad)">Eksik olarak kapat</button>` : ""}</div>${groupedRows(m)}`);
+    $("sBack").onclick = closeSheet;
+    if (inc) $("sInc").onclick = () => confirmSheet({ title: `${ses.flight} eksik olarak kapatılsın mı?`, text: `${missingCount(m)} kalem okutulmadı. Yükleme geçmişe "EKSİK" olarak kaydedilir.`, ok: "Eksik olarak kapat", danger: true, onOk: () => closeIncomplete() });
+    return;
   }
   const finishedAt = new Date().toISOString();
   const rep = reportText(L, ses, true, finishedAt);
@@ -220,11 +246,12 @@ function groupedRows(arr) {
 
 function renderHome() {
   const h = S.history.slice(0, 3);
-  $("recent").innerHTML = h.length ? `<div class="section-title"><h3>Son tamamlananlar</h3><button class="link" id="seeAll">Tümü</button></div><div class="card-list hist">${h.map(histRow).join("")}</div>` : "";
+  $("recent").innerHTML = h.length ? `<div class="section-title"><h3>Son yüklemeler</h3><button class="link" id="seeAll">Tümü</button></div><div class="card-list hist">${h.map(histRow).join("")}</div>` : "";
   const sa = $("seeAll"); if (sa) sa.onclick = () => go("hist");
 }
 function histRow(h, i) {
-  return `<div class="row" data-h="${S.history.indexOf(h)}"><div class="mk">${I.check}</div><div class="desc"><b style="color:var(--ink)">${esc(h.flight)}</b> · ${esc(h.date)}<small>${h.finishedAt ? dt(h.finishedAt) : esc(h.finishedLabel || "")} · ${h.done}/${h.total}${h.route ? " · " + esc(h.route) : ""}</small></div>${h.alarms ? `<span class="badge">${h.alarms} alarm</span>` : ""}</div>`;
+  const inc = h.incomplete;
+  return `<div class="row" data-h="${S.history.indexOf(h)}"><div class="mk" ${inc ? 'style="background:var(--bad);border-color:var(--bad)"' : ""}>${inc ? I.x : I.check}</div><div class="desc"><b style="color:var(--ink)">${esc(h.flight)}</b> · ${esc(h.date)}<small>${h.finishedAt ? dt(h.finishedAt) : esc(h.finishedLabel || "")} · ${h.done}/${h.total}${h.route ? " · " + esc(h.route) : ""}</small></div>${inc ? `<span class="badge">EKSİK ${inc}</span>` : h.alarms ? `<span class="badge">${h.alarms} alarm</span>` : ""}</div>`;
 }
 
 function renderLoad() {
@@ -264,7 +291,7 @@ function renderHist() {
 }
 function openReport(i) {
   const h = S.history[i];
-  sheet(`<h2>${esc(h.flight)} · ${esc(h.date)}</h2><dl class="kv"><dt>Tamamlandı</dt><dd>${h.finishedAt ? dt(h.finishedAt) : esc(h.finishedLabel || "")}</dd><dt>Okunan</dt><dd>${h.done}/${h.total}</dd><dt>Alarm</dt><dd>${h.alarms || "Yok"}</dd></dl><pre class="report" id="rep">${esc(h.report)}</pre><div class="actions"><button class="btn ghost" id="sClose">Kapat</button><button class="btn primary" id="sShare">Paylaş</button></div>`);
+  sheet(`<h2>${esc(h.flight)} · ${esc(h.date)}</h2><dl class="kv"><dt>${h.incomplete ? "Kapatıldı" : "Tamamlandı"}</dt><dd>${h.finishedAt ? dt(h.finishedAt) : esc(h.finishedLabel || "")}${h.incomplete ? ` · <span style="color:var(--bad)">${h.incomplete} eksik</span>` : ""}</dd><dt>Okunan</dt><dd>${h.done}/${h.total}</dd><dt>Alarm</dt><dd>${h.alarms || "Yok"}</dd></dl><pre class="report" id="rep">${esc(h.report)}</pre><div class="actions"><button class="btn ghost" id="sClose">Kapat</button><button class="btn primary" id="sShare">Paylaş</button></div>`);
   $("sClose").onclick = closeSheet;
   $("sShare").onclick = () => shareText(h.report, $("sShare"));
 }
@@ -298,9 +325,11 @@ $("menuBtn").onclick = () => {
   if (ses) items.push(`<button class="menu-item" data-m="photo">${I.cam}Fotoğrafla oku</button>`, `<button class="menu-item" data-m="manual">${I.key}Pozisyon kodu gir</button>`, `<button class="menu-item" data-m="log">${I.list}Okutma kaydı<span class="end">${ses.events.length}</span></button>`);
   items.push(`<button class="menu-item" data-m="hist">${I.clock}Tamamlanan yüklemeler<span class="end">${S.history.length}</span></button>`);
   items.push(`<label class="menu-item">${I.sound}Ses<input type="checkbox" id="mSound" ${S.settings.sound ? "checked" : ""}></label>`);
+  items.push(`<label class="menu-item">${I.stop}<span>Eksikle kapatmaya izin ver<small style="display:block;color:var(--muted);font-size:12.5px">Sunum ve deneme için. Eksikle kapatılan yükleme geçmişte kırmızı görünür.</small></span><input type="checkbox" id="mInc" ${S.settings.allowIncomplete ? "checked" : ""}></label>`);
   if (ses) items.push(`<button class="menu-item danger" data-m="cancel">${I.stop}Yüklemeyi iptal et</button>`);
   sheet(items.join("") + `<p class="muted" style="text-align:center;color:var(--muted);font-size:12.5px;margin:14px 0 0">Körük Kontrol v${APP_VERSION}${store.isPersistent() ? "" : " · veriler kaydedilemiyor"}</p>`);
   $("mSound").onchange = (e) => { S.settings.sound = e.target.checked; store.save(); };
+  $("mInc").onchange = (e) => { S.settings.allowIncomplete = e.target.checked; store.save(); render(); toast(e.target.checked ? "Eksikle kapatma açık" : "Eksikle kapatma kapalı"); };
   $("sheet").querySelectorAll("[data-m]").forEach((b) => (b.onclick = () => menuAction(b.dataset.m)));
 };
 function menuAction(m) {
@@ -314,11 +343,15 @@ function menuAction(m) {
     $("mf").onsubmit = (e) => { e.preventDefault(); const v = $("mIn").value.trim(); if (v) { closeSheet(); onCode(v, /TK\s?\d/i.test(v) ? "scanner" : "manual"); } };
   }
   if (m === "log") {
-    const lab = (e) => (MSG[e.type] ? MSG[e.type]({ label: { pos: e.pos, flight: e.flight, date: e.date }, item: { type: "", desc: "" }, prev: { t: e.t }, raw: e.raw })[0] : e.type === "UNDO" ? "İşaret kaldırıldı" : e.type);
+    const lab = (e) => (MSG[e.type] ? MSG[e.type]({ label: { pos: e.pos, flight: e.flight, date: e.date }, item: { type: "", desc: "" }, prev: { t: e.t }, raw: e.raw })[0] : e.type === "UNDO" ? "İşaret kaldırıldı" : e.type === "CLOSED_INCOMPLETE" ? "Eksik olarak kapatıldı" : e.type);
     sheet(`<h2>Okutma kaydı</h2><div class="log">${ses.events.length ? ses.events.slice().reverse().map((e) => `<div class="${e.kind}"><time>${hm(e.t)}</time>${esc(e.type.startsWith("OK") ? "✓ " + (e.pos || "") : lab(e))}${e.src === "manual" ? " · elle" : ""}${e.type.startsWith("OK") ? "" : e.pos ? " · " + esc(e.pos) : ""}</div>`).join("") : '<div>Henüz okutma yok.</div>'}</div><div class="actions"><button class="btn ghost" id="sClose">Kapat</button></div>`);
     $("sClose").onclick = closeSheet;
   }
   if (m === "cancel") {
+    if (Object.keys(ses.scans).length && S.settings.allowIncomplete) {
+      confirmSheet({ title: `${ses.flight} iptal edilsin mi?`, text: "Okutmalar silinir ve yükleme geçmişe kaydedilmez. Kayıt kalsın istiyorsan 'Yüklemeyi tamamla' > 'Eksik olarak kapat'ı kullan.", ok: "İptal et", danger: true, onOk: () => { S.session = null; S.checklists = {}; store.save(); go("home"); } });
+      return;
+    }
     if (Object.keys(ses.scans).length) {
       sheet(`<div class="result bad">${I.stop}<div><b>İptal edilemez</b>${esc(ses.flight)} için okutma başladı</div></div><p>Okutma başlamış bir yükleme eksiksiz tamamlanmalı.</p><button class="btn primary" id="sClose">Tamam</button>`);
       $("sClose").onclick = closeSheet; return;
